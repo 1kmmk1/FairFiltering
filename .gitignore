@@ -162,17 +162,12 @@ cython_debug/
 #.idea/
 
 dataset/
-!dataset/custom_datasets.py
-!dataset/util.py
 
 GB_Training/
 log/
 ML_Result/
 
 module/
-!module/mlp.py
-!module/resnet.py
-!module/util.py
 
 Resnet_weights/
 Sample_Image/
