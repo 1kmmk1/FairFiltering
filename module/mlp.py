@@ -78,8 +78,6 @@ class MaskingFunction(torch.autograd.Function):
         #grad_norm = torch.norm(grad_input, p=2, dim=-1) / torch.norm(grad_input, p=2, dim=-1).sum()
         # max_norm = torch.argmax(grad_norm)
         # sig_grad = mask * (1. - mask)
-        import ipdb;ipdb.set_trace()
-        
         #org_z_grad = input * sig_grad; grad_batch = grad_input * org_z_grad
         #grad_norm = torch.norm(grad_batch, p=2, dim=-1) / torch.norm(grad_batch, p=2, dim=-1).sum(); 
         #grad_mask = torch.sum((grad_norm).unsqueeze(-1).contiguous() * grad_batch, dim=0)
@@ -97,9 +95,6 @@ class MaskingModel(nn.Module):
 
         self.percentile = percentile
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
-        self.sub_classifier = nn.Sequential(nn.Linear(input_dim, input_dim//2, bias=True),
-                                            nn.LeakyReLU(),
-                                            nn.Linear(input_dim//2, output_dim, bias=False))
     
     def forward(self, x):
         mask = F.sigmoid(self.mask_scores)
@@ -109,8 +104,7 @@ class MaskingModel(nn.Module):
         else:
             out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile)
         
-        sub_out = self.sub_classifier(x)  # Prediction after filtering
-        return out, sub_out
+        return out
     
 
 if __name__ == "__main__":
