@@ -120,7 +120,7 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, train_clf=False):
+                 norm_layer=None, train_clf=False, soft=True, percentile=0.8):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -223,7 +223,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     d = model.fc.in_features
     if kwargs['train_clf']:
         #model.fc = SupermaskLinear(input_dim=d, output_dim=kwargs['num_classes'])
-        model.fc = MaskingModel(input_dim=d, output_dim=kwargs['num_classes'])
+        model.fc = MaskingModel(input_dim=d, output_dim=kwargs['num_classes'], soft = kwargs['soft'], percentile = kwargs['percentile'])
         #model.fc = Gumble_MaskingLayer(input_dim=d, output_dim=kwargs['num_classes'])
     else:
         model.fc = nn.Linear(d, kwargs['num_classes'], bias=False)

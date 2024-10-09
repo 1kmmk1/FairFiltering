@@ -73,7 +73,7 @@ def main(rank, world_size, port, seed, args):
     valid_dl = DataLoader(valid_ds, batch_size=args.batch_size, sampler=valid_sampler, num_workers=4*world_size)
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, num_workers=4*world_size)
 
-    main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf) 
+    main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft, percentile=args.percentile) 
     main_model = main_model.to(rank)
     ddp_model = DDP(main_model, device_ids=[rank], find_unused_parameters=args.fup)
     
@@ -162,14 +162,12 @@ def parse_args():
     parser.add_argument("--patience", type=int, help = 'Patience for Early Stopping', default=40)
     parser.add_argument("--weighted", action='store_true', help = 'Using Weighted CrossEntropy During Training')
     parser.add_argument("--train_clf", action='store_true', help = 'Train Model with Masked Classifier')
-    parser.add_argument("--loss_weight", type=float, help = 'Hyper-parameter for regularization term', default=1.0)
     parser.add_argument("--percentile", type=float, help = 'Hyper-parameter for regularization term', default=0.5)
     
     parser.add_argument("--log_name", type=str, default=None)
     parser.add_argument("--ckpt", type=str, default=None, help = 'checkpoint for bert model')
-    parser.add_argument("--sparsity", type=float, default=0.1, help = 'pruning ratio')
     
-    parser.add_argument('--rand', action='store_true', help='')
+    parser.add_argument('--soft', action='store_true', help='')
     
     parser.add_argument('--SEED', type=int, default=17, help='Random Seed')
     parser.add_argument('--WORLD_SIZE', type=int, default=2, help='number of distributed processes')

@@ -65,31 +65,35 @@ class MLP(nn.Module):
     
 class MaskingFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, weight, input, mask, percentile):
+    def forward(ctx, weight, input, mask, percentile, soft):
         ctx.save_for_backward(weight, input, mask)
-        new_mask = (mask < torch.quantile(mask, percentile).item()).float()
-        return F.linear(input * new_mask, weight)  # Forward에서는 마스크를 적용
+        if soft:
+            return F.linear(input * mask, weight) 
+        else:
+            new_mask = (mask < torch.quantile(mask, percentile).item()).float()
+            return F.linear(input * new_mask, weight)  # Forward에서는 마스크를 적용
 
     @staticmethod
     def backward(ctx, grad_output):
         weight, input, mask = ctx.saved_tensors
-        weight_grad = grad_output.T.matmul(input)# * mask 
+        # Compute the gradient for the weight
+        weight_grad = grad_output.T.matmul(input * mask)
         grad_input = grad_output.matmul(weight)  # 마스크의 영향을 제거한 그레이디언트
-        #grad_norm = torch.norm(grad_input, p=2, dim=-1) / torch.norm(grad_input, p=2, dim=-1).sum()
-        # max_norm = torch.argmax(grad_norm)
+        grad_norm = torch.norm(grad_input, p=2, dim=0)
         # sig_grad = mask * (1. - mask)
         #org_z_grad = input * sig_grad; grad_batch = grad_input * org_z_grad
         #grad_norm = torch.norm(grad_batch, p=2, dim=-1) / torch.norm(grad_batch, p=2, dim=-1).sum(); 
         #grad_mask = torch.sum((grad_norm).unsqueeze(-1).contiguous() * grad_batch, dim=0)
-        grad_mask = torch.sum((mask * input).T @ (grad_output @ weight), dim=0)
-        #grad_mask = grad_input[max_norm]# * sig_grad
-        return weight_grad, grad_input, grad_mask, None
+        #import ipdb;ipdb.set_trace()
+        #grad_mask = torch.sum((mask * input).T @ (grad_output @ weight), dim=0)
+        grad_mask = F.softmax(grad_norm, dim=-1)
+        return weight_grad, grad_input, grad_mask, None, None
 
 
 class MaskingModel(nn.Module):
-    def __init__(self, input_dim, output_dim, rand = False, percentile = 0.5):
+    def __init__(self, input_dim, output_dim, soft = False, percentile = 0.5):
         super(MaskingModel, self).__init__()
-        self.rand = rand
+        self.soft = soft
 
         self.mask_scores = nn.Parameter(torch.randn(input_dim))
 
@@ -98,11 +102,7 @@ class MaskingModel(nn.Module):
     
     def forward(self, x):
         mask = F.sigmoid(self.mask_scores)
-            
-        if self.rand:
-            out = self.classifier(x * mask)
-        else:
-            out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile)
+        out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile, self.soft)
         
         return out
     
