@@ -86,7 +86,8 @@ class MaskingFunction(torch.autograd.Function):
         #grad_mask = torch.sum((grad_norm).unsqueeze(-1).contiguous() * grad_batch, dim=0)
         #import ipdb;ipdb.set_trace()
         #grad_mask = torch.sum((mask * input).T @ (grad_output @ weight), dim=0)
-        grad_mask = F.softmax(grad_norm, dim=-1)
+        grad_mask = F.softmax(grad_norm, dim=-1) #* 이렇게만 하니까 크기, 방향 둘 다 고려하기 어려움
+        #grad_mask = F.softmax(grad_norm, dim=-1) * torch.sum(grad_input, dim=0) << 추가 실험 할거
         return weight_grad, grad_input, grad_mask, None, None
 
 

@@ -40,7 +40,7 @@ def train_ERM(rank,
     else:
         criterion = nn.CrossEntropyLoss(reduction = 'none')
 
-    BEST_SCORE: float = 0
+    BEST_SCORE: float = 10000.
     PATIENCE: int = 0    
     
     #TODO: Train Feature Extractor 
@@ -111,7 +111,7 @@ def train_ERM(rank,
                 pbar = valid_dl
             
             group_acc = MultiDimAverageMeter(attr_dims)
-            Valid_loss = 0
+            sum_loss = 0;
             total = 0;correct_sum = 0
             with torch.no_grad():
                 for batch_idx, (data) in enumerate(pbar):
@@ -125,7 +125,7 @@ def train_ERM(rank,
                     preds = torch.argmax(output, dim=-1)
                     
                     loss_for_update = val_loss.mean()
-                    Valid_loss += loss_for_update.item()
+                    sum_loss += val_loss.sum().cpu().item()
                     correct = (preds == target)
                     
                     total += img.size(0); correct_sum += torch.sum(correct).item()
@@ -146,8 +146,9 @@ def train_ERM(rank,
                             "valid/acc": eq_acc, 
                             "valid/WGA": val_wga.item(),
                             })
+            Valid_loss = sum_loss / total
             if Valid_loss <= BEST_SCORE:
-                BEST_SCORE = val_wga.item()
+                BEST_SCORE = Valid_loss
                 if rank == 0:
                     print("*"*15, "Best Score: {:.4f}".format(val_wga.item()*100), "*"*15) 
                     save_epoch = epoch
