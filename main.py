@@ -129,8 +129,8 @@ def main(rank, world_size, port, seed, args):
         
         print("Test ACC: ", acc.item())
     print("Test WGA: ", torch.min(test_accs).item())
-    wandb.finish() 
     dist.destroy_process_group()
+    wandb.finish() 
 
 def save_args(args, filename):
     os.makedirs(filename, exist_ok=True)

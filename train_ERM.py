@@ -142,10 +142,10 @@ def train_ERM(rank,
             
             if rank ==0:
                 print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
-            wandb.log({"valid/loss": loss_for_update.item(),
-                        "valid/acc": eq_acc, 
-                        "valid/WGA": val_wga.item(),
-                        })
+                wandb.log({"valid/loss": loss_for_update.item(),
+                            "valid/acc": eq_acc, 
+                            "valid/WGA": val_wga.item(),
+                            })
             if Valid_loss <= BEST_SCORE:
                 BEST_SCORE = val_wga.item()
                 if rank == 0:
