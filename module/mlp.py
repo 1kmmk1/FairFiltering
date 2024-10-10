@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-
+import torch.distributed as dist
 class MLP(nn.Module):
     def __init__(self, num_classes = 10):
         super(MLP, self).__init__()
@@ -80,14 +80,16 @@ class MaskingFunction(torch.autograd.Function):
         weight_grad = grad_output.T.matmul(input * mask)
         grad_input = grad_output.matmul(weight)  # 마스크의 영향을 제거한 그레이디언트
         grad_norm = torch.norm(grad_input, p=2, dim=0)
+        #grad_norm = torch.norm(weight_grad, p=2, dim=0)
         # sig_grad = mask * (1. - mask)
         #org_z_grad = input * sig_grad; grad_batch = grad_input * org_z_grad
         #grad_norm = torch.norm(grad_batch, p=2, dim=-1) / torch.norm(grad_batch, p=2, dim=-1).sum(); 
         #grad_mask = torch.sum((grad_norm).unsqueeze(-1).contiguous() * grad_batch, dim=0)
         #import ipdb;ipdb.set_trace()
         #grad_mask = torch.sum((mask * input).T @ (grad_output @ weight), dim=0)
-        grad_mask = F.softmax(grad_norm, dim=-1) #* 이렇게만 하니까 크기, 방향 둘 다 고려하기 어려움
-        #grad_mask = F.softmax(grad_norm, dim=-1) * torch.sum(grad_input, dim=0) << 추가 실험 할거
+        #grad_mask = F.softmax(grad_norm, dim=-1) #* 이렇게만 하니까 크기, 방향 둘 다 고려하기 어려움
+        grad_mask = F.softmax(grad_norm, dim=-1) * torch.sum(grad_input, dim=0) #<< 추가 실험 할거
+        #grad_mask = 
         return weight_grad, grad_input, grad_mask, None, None
 
 
@@ -95,17 +97,38 @@ class MaskingModel(nn.Module):
     def __init__(self, input_dim, output_dim, soft = False, percentile = 0.5):
         super(MaskingModel, self).__init__()
         self.soft = soft
-
-        self.mask_scores = nn.Parameter(torch.randn(input_dim))
-
+        self.mask_scores = nn.Parameter(torch.ones(input_dim))
         self.percentile = percentile
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
+        self.register_buffer('gradient_accumulator', torch.zeros_like(self.mask_scores))
     
     def forward(self, x):
-        mask = F.sigmoid(self.mask_scores)
+        mask = self.mask_scores
         out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile, self.soft)
-        
         return out
+    
+    def accumulate_gradient(self):
+        # Gather gradients from all processes in DDP
+        if dist.is_initialized():
+            if self.classifier.weight.grad is not None:
+                dist.all_reduce(self.classifier.weight.grad, op=dist.ReduceOp.SUM)
+        
+        # Accumulate the gradient norm
+        grad_norm = self.classifier.weight.grad.norm(p=2, dim=0)
+        self.gradient_accumulator += grad_norm
+    
+    def update_mask_scores(self, total_iter):
+        # Average the accumulated gradient norm over the epochs
+        avg_grad_norm = self.gradient_accumulator / total_iter
+        
+        # Update mask_scores for the bottom 80% only
+        with torch.no_grad():
+            threshold = torch.quantile(avg_grad_norm, 0.8)
+            mask = avg_grad_norm <= threshold
+            self.mask_scores[mask] -= avg_grad_norm[mask]
+        
+        # Reset the gradient accumulator
+        self.gradient_accumulator.zero_()
     
 
 if __name__ == "__main__":

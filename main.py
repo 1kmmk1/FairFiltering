@@ -77,15 +77,17 @@ def main(rank, world_size, port, seed, args):
     main_model = main_model.to(rank)
     ddp_model = DDP(main_model, device_ids=[rank], find_unused_parameters=args.fup)
     
-    optimizer = load_optimizer(main_model.parameters(), args)
+    optimizer = load_optimizer([param for name, param in main_model.named_parameters() if name != 'mask_scores'], args)
+    #optimizer = load_optimizer(main_model.parameters(), args)
     if args.main_scheduler_tag != "None":
         scheduler = load_scheduler(optimizer, args)
     else:
         scheduler = None
     
-    print("*"*15, "Training Start!", "*"*15)
-    for key, value in vars(args).items():
-        print(f"{key}: {value}")            
+    if rank==0:
+        print("*"*15, "Training Start!", "*"*15)
+        for key, value in vars(args).items():
+            print(f"{key}: {value}")            
     
     group_acc, val_acc, val_wga = train_ERM(rank, train_dl, valid_dl, train_sampler, valid_sampler, attr_dims, ddp_model, optimizer, scheduler, args)
     
@@ -128,9 +130,10 @@ def main(rank, world_size, port, seed, args):
         np.save(f"log/{args.log_name}/test_result", np.array(test_accs))
         
         print("Test ACC: ", acc.item())
-    print("Test WGA: ", torch.min(test_accs).item())
-    dist.destroy_process_group()
+        print("Test WGA: ", torch.min(test_accs).item())
     wandb.finish() 
+    dist.destroy_process_group()
+    
 
 def save_args(args, filename):
     os.makedirs(filename, exist_ok=True)

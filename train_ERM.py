@@ -40,9 +40,9 @@ def train_ERM(rank,
     else:
         criterion = nn.CrossEntropyLoss(reduction = 'none')
 
-    BEST_SCORE: float = 10000.
+    BEST_SCORE: float = 0.
     PATIENCE: int = 0    
-    
+    UPDATE_FREQ: int = 2
     #TODO: Train Feature Extractor 
     for epoch in range(1, args.epochs+1):
 
@@ -79,6 +79,11 @@ def train_ERM(rank,
             
             optimizer.zero_grad()
             loss_for_update.backward()
+            torch.nn.utils.clip_grad_norm_(model.module.fc.parameters(), max_norm=1.0)
+            
+            # Accumulate gradient norms
+            model.module.fc.accumulate_gradient()
+            
             optimizer.step()
             
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
@@ -87,6 +92,9 @@ def train_ERM(rank,
 
             if rank == 0:
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
+
+        if (epoch) % UPDATE_FREQ == 0:
+            model.module.fc.update_mask_scores((batch_idx+1) * UPDATE_FREQ)
         
         if batch_idx % 10 and rank == 0:
             wandb.log({"train/loss": loss_for_update.item(),
@@ -125,7 +133,7 @@ def train_ERM(rank,
                     preds = torch.argmax(output, dim=-1)
                     
                     loss_for_update = val_loss.mean()
-                    sum_loss += val_loss.sum().cpu().item()
+                    sum_loss += loss_for_update.detach().cpu()
                     correct = (preds == target)
                     
                     total += img.size(0); correct_sum += torch.sum(correct).item()
@@ -146,9 +154,8 @@ def train_ERM(rank,
                             "valid/acc": eq_acc, 
                             "valid/WGA": val_wga.item(),
                             })
-            Valid_loss = sum_loss / total
-            if Valid_loss <= BEST_SCORE:
-                BEST_SCORE = Valid_loss
+            if val_wga > BEST_SCORE:
+                BEST_SCORE = val_wga
                 if rank == 0:
                     print("*"*15, "Best Score: {:.4f}".format(val_wga.item()*100), "*"*15) 
                     save_epoch = epoch
@@ -157,6 +164,8 @@ def train_ERM(rank,
                                 'state_dict': model.module.state_dict()}
                     with open(os.path.join("log", args.log_name, "model.th"), 'wb') as f:
                         torch.save(state_dict, f)
+                    BEST_ACC = eq_acc
+                    BEST_GROUP_ACC = group_acc
                 PATIENCE = 0
             else:
                 PATIENCE += 1
@@ -175,4 +184,4 @@ def train_ERM(rank,
         with open(os.path.join("log", args.log_name, f"model_{epoch}.th"), 'wb') as f:
             torch.save(state_dict, f)
             
-    return group_acc, eq_acc, val_wga.item()  
+    return BEST_GROUP_ACC, BEST_ACC, BEST_SCORE  
