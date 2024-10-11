@@ -42,7 +42,7 @@ def train_ERM(rank,
 
     BEST_SCORE: float = 0.
     PATIENCE: int = 0    
-    UPDATE_FREQ: int = 2
+    UPDATE_FREQ: int = 1
     #TODO: Train Feature Extractor 
     for epoch in range(1, args.epochs+1):
 
@@ -67,7 +67,7 @@ def train_ERM(rank,
             loss = criterion(output, target)
             preds = torch.argmax(output, dim=-1)
     
-            loss_for_update = loss.mean()
+            loss_for_update = loss.mean() + 0.1 * (torch.norm(model.module.fc.classifier.weight, p=2) ** 2)
                 
             correct = (preds == target)
             loss_meter.add(loss.cpu(), attr.cpu())
@@ -79,10 +79,10 @@ def train_ERM(rank,
             
             optimizer.zero_grad()
             loss_for_update.backward()
-            torch.nn.utils.clip_grad_norm_(model.module.fc.parameters(), max_norm=1.0)
             
             # Accumulate gradient norms
-            model.module.fc.accumulate_gradient()
+            if args.train_clf:
+                model.module.fc.accumulate_gradient()
             
             optimizer.step()
             
@@ -92,9 +92,13 @@ def train_ERM(rank,
 
             if rank == 0:
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
-
-        if (epoch) % UPDATE_FREQ == 0:
-            model.module.fc.update_mask_scores((batch_idx+1) * UPDATE_FREQ)
+        if rank == 0 and args.train_clf:
+            tempt = model.module.fc.gradient_accumulator
+            print(tempt)
+            print(model.module.fc.mask_scores)
+            
+        if epoch % UPDATE_FREQ == 0 and args.train_clf:
+            model.module.fc.update_mask_scores((batch_idx + 1) * (UPDATE_FREQ))
         
         if batch_idx % 10 and rank == 0:
             wandb.log({"train/loss": loss_for_update.item(),
@@ -173,8 +177,7 @@ def train_ERM(rank,
             if PATIENCE > args.patience:
                 if args.early_stopping:    
                     break
-                    
-    
+
     #* save model
     if rank==0:
         state_dict = {

@@ -77,8 +77,11 @@ def main(rank, world_size, port, seed, args):
     main_model = main_model.to(rank)
     ddp_model = DDP(main_model, device_ids=[rank], find_unused_parameters=args.fup)
     
-    optimizer = load_optimizer([param for name, param in main_model.named_parameters() if name != 'mask_scores'], args)
-    #optimizer = load_optimizer(main_model.parameters(), args)
+    #optimizer = load_optimizer([param for name, param in main_model.named_parameters() if name != 'mask_scores'], args)
+    #optimizer1 = torch.optim.SGD(main_model.fc.parameters(), lr = 0.0003, weight_decay = 0.0001, momentum = 0.9)
+    #optimizer2 = load_optimizer([param for name, param in main_model.named_parameters() if 'fc' not in name], args)
+    optimizer = load_optimizer(main_model.parameters(), args)
+    #optimizer = [optimizer1, optimizer2]
     if args.main_scheduler_tag != "None":
         scheduler = load_scheduler(optimizer, args)
     else:
