@@ -146,8 +146,11 @@ def train_ERM(rank,
                         "valid/acc": eq_acc, 
                         "valid/WGA": val_wga.item(),
                         })
-            if Valid_loss <= BEST_SCORE:
+            
+            if val_wga.item() > BEST_SCORE:
                 BEST_SCORE = val_wga.item()
+                BEST_ACC = eq_acc
+                BEST_GROUP = group_acc
                 if rank == 0:
                     print("*"*15, "Best Score: {:.4f}".format(val_wga.item()*100), "*"*15) 
                     save_epoch = epoch
@@ -174,4 +177,4 @@ def train_ERM(rank,
         with open(os.path.join("log", args.log_name, f"model_{epoch}.th"), 'wb') as f:
             torch.save(state_dict, f)
             
-    return group_acc, eq_acc, val_wga.item()  
+    return BEST_GROUP, BEST_ACC, BEST_SCORE
