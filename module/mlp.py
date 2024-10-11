@@ -65,10 +65,13 @@ class MLP(nn.Module):
     
 class MaskingFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, weight, input, mask, percentile):
+    def forward(ctx, weight, input, mask, percentile, soft):
         ctx.save_for_backward(weight, input, mask)
-        new_mask = (mask < torch.quantile(mask, percentile).item()).float()
-        return F.linear(input * new_mask, weight)  # Forward에서는 마스크를 적용
+        if soft:
+            F.linear(input * mask, weight)
+        else:
+            new_mask = (mask < torch.quantile(mask, percentile).item()).float()
+            return F.linear(input * new_mask, weight)  # Forward에서는 마스크를 적용
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -78,8 +81,6 @@ class MaskingFunction(torch.autograd.Function):
         #grad_norm = torch.norm(grad_input, p=2, dim=-1) / torch.norm(grad_input, p=2, dim=-1).sum()
         # max_norm = torch.argmax(grad_norm)
         # sig_grad = mask * (1. - mask)
-        import ipdb;ipdb.set_trace()
-        
         #org_z_grad = input * sig_grad; grad_batch = grad_input * org_z_grad
         #grad_norm = torch.norm(grad_batch, p=2, dim=-1) / torch.norm(grad_batch, p=2, dim=-1).sum(); 
         #grad_mask = torch.sum((grad_norm).unsqueeze(-1).contiguous() * grad_batch, dim=0)
@@ -89,28 +90,23 @@ class MaskingFunction(torch.autograd.Function):
 
 
 class MaskingModel(nn.Module):
-    def __init__(self, input_dim, output_dim, rand = False, percentile = 0.5):
+    def __init__(self, input_dim, output_dim, soft = False, percentile = 0.5):
         super(MaskingModel, self).__init__()
-        self.rand = rand
+        self.soft = soft
 
         self.mask_scores = nn.Parameter(torch.randn(input_dim))
 
         self.percentile = percentile
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
-        self.sub_classifier = nn.Sequential(nn.Linear(input_dim, input_dim//2, bias=True),
-                                            nn.LeakyReLU(),
-                                            nn.Linear(input_dim//2, output_dim, bias=False))
-    
     def forward(self, x):
         mask = F.sigmoid(self.mask_scores)
             
-        if self.rand:
+        if self.soft:
             out = self.classifier(x * mask)
         else:
             out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile)
-        
-        sub_out = self.sub_classifier(x)  # Prediction after filtering
-        return out, sub_out
+
+        return out
     
 
 if __name__ == "__main__":

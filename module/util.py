@@ -16,11 +16,11 @@ def cnt_params(model):
             cnt += m.numel()
     return cnt
 
-def get_model(model_tag, num_classes, train_clf):
+def get_model(model_tag, num_classes, train_clf, soft, percentile):
     if model_tag == "MLP":
         model = MLP(num_classes=num_classes)
     elif model_tag == "resnet50":
-        model = resnet50(pretrained=True, train_clf = train_clf, num_classes = num_classes)
+        model = resnet50(pretrained=True, train_clf = train_clf, num_classes = num_classes, soft = soft, percentile=percentile)
     elif model_tag == "BERT":
         bert_model = BertModel.from_pretrained('bert-base-uncased')
         model = BertWrapper(bert_model, num_classes = num_classes, train_clf = train_clf)

@@ -120,12 +120,14 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, train_clf=False):
+                 norm_layer=None, train_clf=False, soft=False, percentile=0.5):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
         self.train_clf = train_clf
+        self.soft = soft
+        self.percentile = percentile
         self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:
@@ -222,9 +224,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
         model.load_state_dict(state_dict, strict=False)
     d = model.fc.in_features
     if kwargs['train_clf']:
-        #model.fc = SupermaskLinear(input_dim=d, output_dim=kwargs['num_classes'])
-        model.fc = MaskingModel(input_dim=d, output_dim=kwargs['num_classes'])
-        #model.fc = Gumble_MaskingLayer(input_dim=d, output_dim=kwargs['num_classes'])
+        model.fc = MaskingModel(input_dim=d, output_dim=kwargs['num_classes'], soft=kwargs['soft'], percentile=kwargs['percentile'])
     else:
         model.fc = nn.Linear(d, kwargs['num_classes'], bias=False)
     return model
@@ -241,20 +241,6 @@ def resnet34(pretrained=False, progress=True, **kwargs):
 def resnet50(pretrained=False, progress=True, **kwargs):
     return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
                    **kwargs)
-
-
-class Gumble_MaskingLayer(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(Gumble_MaskingLayer, self).__init__()
-        self.mask_scores = torch.nn.Parameter(torch.zeros(input_dim))
-        self.classifier = nn.Linear(input_dim, output_dim, bias=False)
-        
-    def forward(self, x, tau):
-        # Gumbel Noise 추가
-        gumbel_noise = -torch.log(-torch.log(torch.rand_like(self.mask_scores) + 1e-20) + 1e-20)
-        y = F.softmax((self.mask_scores + gumbel_noise) / tau, dim=-1)
-        out = self.classifier(x * y)
-        return out, x
 
 if __name__ == "__main__":
     pass

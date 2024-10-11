@@ -162,20 +162,18 @@ def parse_args():
     parser.add_argument("--patience", type=int, help = 'Patience for Early Stopping', default=40)
     parser.add_argument("--weighted", action='store_true', help = 'Using Weighted CrossEntropy During Training')
     parser.add_argument("--train_clf", action='store_true', help = 'Train Model with Masked Classifier')
-    parser.add_argument("--loss_weight", type=float, help = 'Hyper-parameter for regularization term', default=1.0)
+    #parser.add_argument("--loss_weight", type=float, help = 'Hyper-parameter for regularization term', default=1.0)
     parser.add_argument("--percentile", type=float, help = 'Hyper-parameter for regularization term', default=0.5)
     
     parser.add_argument("--log_name", type=str, default=None)
     parser.add_argument("--ckpt", type=str, default=None, help = 'checkpoint for bert model')
-    parser.add_argument("--sparsity", type=float, default=0.1, help = 'pruning ratio')
-    
-    parser.add_argument('--rand', action='store_true', help='')
+    parser.add_argument('--soft', type=bool, default=False)
     
     parser.add_argument('--SEED', type=int, default=17, help='Random Seed')
     parser.add_argument('--WORLD_SIZE', type=int, default=2, help='number of distributed processes')
     parser.add_argument('--PORT', type=str, default='12322', help='number of Master PORT Number')
     parser.add_argument('--fup', type=bool, default=False, help='Fine unused parameters for DDP')
-    
+
     
     args = parser.parse_args()
     
