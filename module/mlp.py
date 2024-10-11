@@ -105,9 +105,7 @@ class MaskingModel(nn.Module):
             out = self.classifier(x * mask)
         else:
             out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile)
-
         return out
-    
 
 if __name__ == "__main__":
     pass

@@ -73,7 +73,7 @@ def main(rank, world_size, port, seed, args):
     valid_dl = DataLoader(valid_ds, batch_size=args.batch_size, sampler=valid_sampler, num_workers=4*world_size)
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, num_workers=4*world_size)
 
-    main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf) 
+    main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft=args.soft, percentile=args.percentile) 
     main_model = main_model.to(rank)
     ddp_model = DDP(main_model, device_ids=[rank], find_unused_parameters=args.fup)
     
