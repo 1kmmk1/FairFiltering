@@ -68,10 +68,10 @@ class MaskingFunction(torch.autograd.Function):
     def forward(ctx, weight, input, mask, percentile, soft):
         ctx.save_for_backward(weight, input, mask)
         if soft:
-            F.linear(input * mask, weight)
+            F.linear(input + mask, weight)
         else:
-            new_mask = (mask < torch.quantile(mask, percentile).item()).float()
-            return F.linear(input * new_mask, weight)  # Forward에서는 마스크를 적용
+            new_mask = torch.sign(mask)
+            return F.linear(input + new_mask, weight)  # Forward에서는 마스크를 적용
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -84,9 +84,9 @@ class MaskingFunction(torch.autograd.Function):
         #org_z_grad = input * sig_grad; grad_batch = grad_input * org_z_grad
         #grad_norm = torch.norm(grad_batch, p=2, dim=-1) / torch.norm(grad_batch, p=2, dim=-1).sum(); 
         #grad_mask = torch.sum((grad_norm).unsqueeze(-1).contiguous() * grad_batch, dim=0)
-        grad_mask = torch.sum((mask * input).T @ (grad_output @ weight), dim=0)
-        #grad_mask = grad_input[max_norm]# * sig_grad
-        return weight_grad, grad_input, grad_mask, None
+        #grad_mask = torch.sum((mask * input).T @ (grad_output @ weight), dim=0)
+        grad_mask = grad_output.matmul(weight)
+        return weight_grad, grad_input, grad_mask, None, None
 
 
 class MaskingModel(nn.Module):
@@ -104,7 +104,7 @@ class MaskingModel(nn.Module):
         if self.soft:
             out = self.classifier(x * mask)
         else:
-            out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile)
+            out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile, self.soft)
         return out
 
 if __name__ == "__main__":

@@ -88,7 +88,7 @@ def train_ERM(rank,
             if rank == 0:
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
         
-            if batch_idx % 10 and rank == 0:
+            if batch_idx % 10 == 0 and rank == 0:
                 wandb.log({"train/loss": loss_for_update.item(),
                         "train/acc": correct_sum / total,
                         "train/WGA": wga.item(),

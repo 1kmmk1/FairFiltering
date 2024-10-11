@@ -167,7 +167,7 @@ def parse_args():
     
     parser.add_argument("--log_name", type=str, default=None)
     parser.add_argument("--ckpt", type=str, default=None, help = 'checkpoint for bert model')
-    parser.add_argument('--soft', type=bool, default=False)
+    parser.add_argument('--soft', action='store_true')
     
     parser.add_argument('--SEED', type=int, default=17, help='Random Seed')
     parser.add_argument('--WORLD_SIZE', type=int, default=2, help='number of distributed processes')
