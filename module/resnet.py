@@ -120,12 +120,14 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, train_clf=False, soft=True, percentile=0.8):
+                 norm_layer=None, train_clf=False, soft=False, percentile=0.8):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
         self.train_clf = train_clf
+        self.soft = soft
+        self.percentile = percentile
         self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:

@@ -59,8 +59,8 @@ def main(rank, world_size, port, seed, args):
     
     train_ds = My_dataset(data = args.data_type, split = 'train', shuffle=args.shuffle, ratio = args.ratio)
     valid_ds = My_dataset(data = args.data_type, split = 'val', shuffle=args.shuffle, ratio = args.ratio)
-    test_ds = My_dataset(data = args.data_type, split = 'test')
-    if rank==0:print("Train DS: ", len(train_ds), "\n", "Valid Ds: ", len(valid_ds))
+    test_ds = My_dataset(data = args.data_type, split = 'test', shuffle=args.shuffle)
+    if rank==0:print("Train DS: ", len(train_ds), "\n", "Valid Ds: ", len(valid_ds), "\n", "Test Ds: ", len(test_ds))
     
     num_classes = torch.max(train_ds.attr[:, 0]).item() + 1
     bias_classes = torch.max(train_ds.attr[:, 1]).item() + 1
@@ -71,15 +71,12 @@ def main(rank, world_size, port, seed, args):
     
     train_dl = DataLoader(train_ds, batch_size=args.batch_size, sampler=train_sampler, num_workers=4*world_size)
     valid_dl = DataLoader(valid_ds, batch_size=args.batch_size, sampler=valid_sampler, num_workers=4*world_size)
-    test_dl = DataLoader(test_ds, batch_size=args.batch_size, num_workers=4*world_size)
+    test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle = False, num_workers=4*world_size)
 
     main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft, percentile=args.percentile) 
     main_model = main_model.to(rank)
     ddp_model = DDP(main_model, device_ids=[rank], find_unused_parameters=args.fup)
     
-    #optimizer = load_optimizer([param for name, param in main_model.named_parameters() if name != 'mask_scores'], args)
-    #optimizer1 = torch.optim.SGD(main_model.fc.parameters(), lr = 0.0003, weight_decay = 0.0001, momentum = 0.9)
-    #optimizer2 = load_optimizer([param for name, param in main_model.named_parameters() if 'fc' not in name], args)
     optimizer = load_optimizer(main_model.parameters(), args)
     #optimizer = [optimizer1, optimizer2]
     if args.main_scheduler_tag != "None":
@@ -92,31 +89,37 @@ def main(rank, world_size, port, seed, args):
         for key, value in vars(args).items():
             print(f"{key}: {value}")            
     
-    group_acc, val_acc, val_wga = train_ERM(rank, train_dl, valid_dl, train_sampler, valid_sampler, attr_dims, ddp_model, optimizer, scheduler, args)
+    #group_acc, val_acc, val_wga = train_ERM(rank, train_dl, valid_dl, train_sampler, valid_sampler, attr_dims, ddp_model, optimizer, scheduler, args)
     
     if rank == 0:
-        print("Valid Acc: ", val_acc)
-        print("Valid WGA: ", val_wga)
+        # print("Valid Acc: ", val_acc)
+        # print("Valid WGA: ", val_wga)
 
-        np.save(f"log/{args.log_name}/validation_result", np.array(group_acc.get_mean()))
+        # np.save(f"log/{args.log_name}/validation_result", np.array(group_acc.get_mean()))
 
         #TODO: Test
         print("*"*15, "Test Start!", "*"*15)   
-        main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf) 
+        main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft, percentile=args.percentile) 
         state_dict = torch.load(os.path.join("log", f"{args.log_name}", "model.th"))
         main_model.load_state_dict(state_dict['state_dict'], strict=True)
         main_model = main_model.to(rank)
-        
+
         #TODO: Save Embeddings
         if args.save_embed:
             save_embed(rank = rank, model=main_model, data_loader = [("valid", valid_dl), ("test", test_dl)], log_name = args.log_name, data = args.data_type)
-        
-        #TODO: Load Classifier
+        valid_dl = DataLoader(valid_ds, batch_size=args.batch_size, num_workers=4*world_size)
+        print("*"*15, "Check Valid", "*"*15)
         acc, test_accs = evaluate(rank,
-                                main_model,
-                                test_dl,
-                                target_attr_idx = 0,
-                                attr_dims = attr_dims)
+                        main_model,
+                        valid_dl,
+                        target_attr_idx = 0,
+                        attr_dims = attr_dims)
+        # #TODO: Load Classifier
+        # acc, test_accs = evaluate(rank,
+        #                         main_model,
+        #                         test_dl,
+        #                         target_attr_idx = 0,
+        #                         attr_dims = attr_dims)
 
         group = 2 * train_ds.attr[:, 0] + train_ds.attr[:, 1]
         group_ratio = np.unique(group, return_counts=True)[1] / len(group)
