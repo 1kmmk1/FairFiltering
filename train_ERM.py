@@ -177,6 +177,7 @@ def train_ERM(rank,
             if val_wga.item() > BEST_SCORE:
                 BEST_SCORE = val_wga.item()
                 BEST_ACC = eq_acc
+                BEST_EPOCH = epoch
                 BEST_GROUP_ACC = group_acc
                 if rank == 0:
                     print("*"*15, "Best Score: {:.4f}".format(val_wga.item()*100), "*"*15) 
@@ -185,7 +186,7 @@ def train_ERM(rank,
                                 'epoch': save_epoch,
                                 'state_dict': model.module.state_dict(),
                                 'optimizer_state_dict': optimizer.state_dict()}
-                    with open(os.path.join("log", args.log_name, "model.th"), 'wb') as f:
+                    with open(os.path.join("log", args.log_name, f"model_{epoch}.th"), 'wb') as f:
                         torch.save(state_dict, f)
                     print("*"*15, "Model Saved!", "*"*15)
                 PATIENCE = 0
@@ -196,13 +197,4 @@ def train_ERM(rank,
                 if args.early_stopping:    
                     break
 
-    # #* save model
-    # if rank==0:
-    #     state_dict = {
-    #             'best score': val_wga,
-    #             'state_dict': model.module.state_dict(), 
-    #         }
-    #     with open(os.path.join("log", args.log_name, f"model_{epoch}.th"), 'wb') as f:
-    #         torch.save(state_dict, f)
-            
-    return BEST_GROUP_ACC, BEST_ACC, BEST_SCORE  
+    return BEST_GROUP_ACC, BEST_ACC, BEST_SCORE, BEST_EPOCH
