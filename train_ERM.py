@@ -165,7 +165,7 @@ def train_ERM(rank,
             world_size = dist.get_world_size()
             val_acc_mean = val_acc_tensor / world_size
             val_wga_mean = val_wga_tensor / world_size
-            val_wga = val_acc_mean
+            val_wga = val_wga_mean
             
             if rank ==0:
                 print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
