@@ -67,7 +67,7 @@ def train_ERM(rank,
             loss = criterion(output, target)
             preds = torch.argmax(output, dim=-1)
     
-            loss_for_update = loss.mean() + 0.1 * (torch.norm(model.module.fc.classifier.weight, p=2) ** 2)
+            loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.classifier.weight, p=2) ** 2)
                 
             correct = (preds == target)
             loss_meter.add(loss.cpu(), attr.cpu())
@@ -80,10 +80,6 @@ def train_ERM(rank,
             optimizer.zero_grad()
             loss_for_update.backward()
             
-            # Accumulate gradient norms
-            if args.train_clf:
-                model.module.fc.accumulate_gradient()
-            
             optimizer.step()
             
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
@@ -93,14 +89,8 @@ def train_ERM(rank,
             if rank == 0:
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
         if rank == 0 and args.train_clf:
-            tempt = model.module.fc.gradient_accumulator
-            print(tempt)
             print(model.module.fc.mask_scores)
             
-        # if epoch % UPDATE_FREQ == 0 and args.train_clf:
-        #     curr_lr = scheduler.get_last_lr()[0]
-        #     model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * (UPDATE_FREQ))
-        
         if batch_idx % 10 and rank == 0:
             wandb.log({"train/loss": loss_for_update.item(),
                     "train/acc": correct_sum / total,
@@ -168,7 +158,7 @@ def train_ERM(rank,
             val_wga = val_wga_mean
             
             if rank ==0:
-                print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
+                print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc_mean.item()*100, val_wga.item()*100))
                 wandb.log({"valid/loss": loss_for_update.item(),
                             "valid/acc": eq_acc, 
                             "valid/WGA": val_wga.item(),

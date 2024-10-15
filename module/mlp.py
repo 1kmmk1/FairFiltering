@@ -86,7 +86,7 @@ class MaskingFunction(torch.autograd.Function):
         #grad_norm = torch.norm(weight_grad, p=2, dim=0)
         sig_grad = mask * (1. - mask)
         grad_mask_ = ((grad_output @ weight) * input * sig_grad).sum(dim=0) 
-
+        
         return weight_grad, grad_input, grad_mask_, None, None
 
 

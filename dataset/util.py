@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms as T
-sys.path.append('../ACCV/dataset/')
-# import utils_glue
+sys.path.append('../FairFiltering/dataset/')
+import utils_glue
 
 transforms = {
     "CelebA": {

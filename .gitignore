@@ -194,6 +194,7 @@ requirements.txt
 
 tests.py
 train_baseline.sh
+train_ddp.sh
 
 train_weighted.sh
 

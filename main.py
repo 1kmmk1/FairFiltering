@@ -115,11 +115,11 @@ def main(rank, world_size, port, seed, args):
                         target_attr_idx = 0,
                         attr_dims = attr_dims)
         # #TODO: Load Classifier
-        # acc, test_accs = evaluate(rank,
-        #                         main_model,
-        #                         test_dl,
-        #                         target_attr_idx = 0,
-        #                         attr_dims = attr_dims)
+        acc, test_accs = evaluate(rank,
+                                main_model,
+                                test_dl,
+                                target_attr_idx = 0,
+                                attr_dims = attr_dims)
 
         group = 2 * train_ds.attr[:, 0] + train_ds.attr[:, 1]
         group_ratio = np.unique(group, return_counts=True)[1] / len(group)
