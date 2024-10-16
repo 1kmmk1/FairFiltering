@@ -89,7 +89,15 @@ def train_ERM(rank,
 
             if rank == 0:
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
-
+                if batch_idx % 10 == 0:
+                    wandb.log({"train/loss": loss_for_update.item(),
+                            "train/acc": correct_sum / total,
+                            "train/WGA": wga.item(),
+                            })
+        if rank==0:
+            print(f"Train ACC: {torch.mean(acc)},  Train WGA: {wga}")
+            pbar.close()
+            
         if args.train_clf and epoch % UPDATE_FREQ == 0:
             if scheduler is not None:
                 curr_lr = scheduler.get_last_lr()[0]
@@ -97,16 +105,6 @@ def train_ERM(rank,
                 curr_lr = args.learning_rate
             model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * UPDATE_FREQ) 
         
-            
-        if batch_idx % 10 and rank == 0:
-            wandb.log({"train/loss": loss_for_update.item(),
-                    "train/acc": correct_sum / total,
-                    "train/WGA": wga.item(),
-                    })
-        if rank==0:
-            print(f"Train ACC: {torch.mean(acc)},  Train WGA: {wga}")
-            pbar.close()
-            
         if scheduler is not None:
             scheduler.step()
 
