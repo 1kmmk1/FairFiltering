@@ -88,8 +88,14 @@ def train_ERM(rank,
 
             if rank == 0:
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
-        if rank == 0 and args.train_clf:
-            print(model.module.fc.mask_scores)
+
+        if args.train_clf and epoch % UPDATE_FREQ == 0:
+            if scheduler is not None:
+                curr_lr = scheduler.get_last_lr()[0]
+            else: 
+                curr_lr = args.learning_rate
+            model.fc.update_mask_scores(curr_lr, (batch_idx + 1) * UPDATE_FREQ) 
+        
             
         if batch_idx % 10 and rank == 0:
             wandb.log({"train/loss": loss_for_update.item(),
@@ -142,23 +148,10 @@ def train_ERM(rank,
             
             val_acc = torch.mean(group_acc.get_mean())
             val_wga = torch.min(group_acc.get_mean())
-            
-            # val_acc와 val_wga를 모든 rank에서 수집하고 합산
-            val_acc_tensor = torch.tensor([val_acc], device=rank)
-            val_wga_tensor = torch.tensor([val_wga], device=rank)
-
-            # # 모든 rank에서 합산
-            dist.all_reduce(val_acc_tensor, op=dist.ReduceOp.SUM)
-            dist.all_reduce(val_wga_tensor, op=dist.ReduceOp.SUM)
-
-            # # 평균 내기 (world_size는 전체 프로세스의 수)
-            world_size = dist.get_world_size()
-            val_acc_mean = val_acc_tensor / world_size
-            val_wga_mean = val_wga_tensor / world_size
-            val_wga = val_wga_mean
+        
             
             if rank ==0:
-                print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc_mean.item()*100, val_wga.item()*100))
+                print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
                 wandb.log({"valid/loss": loss_for_update.item(),
                             "valid/acc": eq_acc, 
                             "valid/WGA": val_wga.item(),
@@ -170,14 +163,16 @@ def train_ERM(rank,
                 BEST_EPOCH = epoch
                 BEST_GROUP_ACC = group_acc
                 if rank == 0:
+                    
                     print("*"*15, "Best Score: {:.4f}".format(val_wga.item()*100), "*"*15) 
                     save_epoch = epoch
                     state_dict = {'best score': val_wga.item(),
                                 'epoch': save_epoch,
                                 'state_dict': model.module.state_dict(),
                                 'optimizer_state_dict': optimizer.state_dict()}
-                    with open(os.path.join("log", args.log_name, f"model_{epoch}.th"), 'wb') as f:
-                        torch.save(state_dict, f)
+                    
+                    save_path = os.path.join("log", args.log_name, f"model_{epoch}.th")
+                    torch.save(state_dict, save_path)
                     print("*"*15, "Model Saved!", "*"*15)
                 PATIENCE = 0
             else:
