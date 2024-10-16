@@ -73,7 +73,7 @@ def main(rank, world_size, port, seed, args):
     valid_dl = DataLoader(valid_ds, batch_size=args.batch_size, sampler=valid_sampler, num_workers=4*world_size)
     test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle = False, num_workers=4*world_size)
 
-    main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft, percentile=args.percentile) 
+    main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft) 
     main_model = main_model.to(rank)
     ddp_model = DDP(main_model, device_ids=[rank], find_unused_parameters=args.fup)
     
@@ -98,7 +98,7 @@ def main(rank, world_size, port, seed, args):
 
         #TODO: Test
         print("*"*15, "Test Start!", "*"*15)   
-        main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft, percentile=args.percentile) 
+        main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft) 
         state_dict = torch.load(os.path.join("log", f"{args.log_name}", f"model_{epoch}.th"))
         main_model.load_state_dict(state_dict['state_dict'], strict=True)
         main_model = main_model.to(rank)
