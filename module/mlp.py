@@ -82,8 +82,6 @@ class MaskingFunction(torch.autograd.Function):
         # Compute the gradient for the weight
         weight_grad = grad_output.T.matmul(input * mask)
         grad_input = grad_output.matmul(weight)# * mask # 마스크의 영향을 제거한 그레이디언트
-        #grad_norm = torch.norm(grad_input, p=2, dim=0)
-        #grad_norm = torch.norm(weight_grad, p=2, dim=0)
         sig_grad = mask * (1. - mask)
         grad_mask_ = ((grad_output @ weight) * input * sig_grad).sum(dim=0) 
         
@@ -117,20 +115,20 @@ class MaskingModel(nn.Module):
         # Calculate weighted gradient norm based on class counts
         self.gradient_accumulator += self.weight_grad
     
-    # def update_mask_scores(self, curr_lr, total_iter):
-    #     # Average the accumulated gradient norm over the epochs
-    #     avg_grad_norm = self.gradient_accumulator / total_iter
+    def update_mask_scores(self, curr_lr, total_iter):
+        # Average the accumulated gradient norm over the epochs
+        avg_grad_norm = self.gradient_accumulator / total_iter
         
-    #     # Update mask_scores for the bottom 80% only
-    #     with torch.no_grad():
-    #         # threshold = torch.quantile(torch.abs(avg_grad_norm), self.percentile)
-    #         # mask = torch.abs(avg_grad_norm) >= threshold
-    #         # self.mask_scores[mask] -= avg_grad_norm[mask]
-    #         self.mask_scores -= (curr_lr * 32.) * avg_grad_norm
+        # Update mask_scores for the bottom 80% only
+        with torch.no_grad():
+            # threshold = torch.quantile(torch.abs(avg_grad_norm), self.percentile)
+            # mask = torch.abs(avg_grad_norm) >= threshold
+            # self.mask_scores[mask] -= avg_grad_norm[mask]
+            self.mask_scores -= (curr_lr * 32.) * avg_grad_norm
         
-    #     # Reset the gradient accumulator
-    #     self.gradient_accumulator.zero_()
-    #     self.weight_grad.zero_()
+        # Reset the gradient accumulator
+        self.gradient_accumulator.zero_()
+        self.weight_grad.zero_()
     
 
 if __name__ == "__main__":

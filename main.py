@@ -78,7 +78,6 @@ def main(rank, world_size, port, seed, args):
     ddp_model = DDP(main_model, device_ids=[rank], find_unused_parameters=args.fup)
     
     optimizer = load_optimizer(main_model.parameters(), args)
-    #optimizer = [optimizer1, optimizer2]
     if args.main_scheduler_tag != "None":
         scheduler = load_scheduler(optimizer, args)
     else:
@@ -107,13 +106,7 @@ def main(rank, world_size, port, seed, args):
         #TODO: Save Embeddings
         if args.save_embed:
             save_embed(rank = rank, model=main_model, data_loader = [("valid", valid_dl), ("test", test_dl)], log_name = args.log_name, data = args.data_type)
-        valid_dl = DataLoader(valid_ds, batch_size=args.batch_size, num_workers=4*world_size)
-        print("*"*15, "Check Valid", "*"*15)
-        acc, test_accs = evaluate(rank,
-                        main_model,
-                        valid_dl,
-                        target_attr_idx = 0,
-                        attr_dims = attr_dims)
+
         # #TODO: Load Classifier
         acc, test_accs = evaluate(rank,
                                 main_model,
@@ -130,8 +123,6 @@ def main(rank, world_size, port, seed, args):
         with open(filename, 'w', encoding='utf-8') as file:
             file.write(f"Acc: {acc.item()}\n")
             file.write(f"WGA: {torch.min(test_accs).item()}\n")
-            #file.write(f"Acc(Bias Skewed): {test_accs[eye_tsr==0].mean().item()}\n")
-            #file.write(f"Acc(Bias Aligned): {test_accs[eye_tsr==1].mean().item()}")
         
         np.save(f"log/{args.log_name}/test_result", np.array(test_accs))
         

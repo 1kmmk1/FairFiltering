@@ -79,7 +79,8 @@ def train_ERM(rank,
             
             optimizer.zero_grad()
             loss_for_update.backward()
-            
+            if args.train_clf:
+                model.module.fc.accumulate_gradient()
             optimizer.step()
             
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
@@ -94,7 +95,7 @@ def train_ERM(rank,
                 curr_lr = scheduler.get_last_lr()[0]
             else: 
                 curr_lr = args.learning_rate
-            model.fc.update_mask_scores(curr_lr, (batch_idx + 1) * UPDATE_FREQ) 
+            model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * UPDATE_FREQ) 
         
             
         if batch_idx % 10 and rank == 0:
