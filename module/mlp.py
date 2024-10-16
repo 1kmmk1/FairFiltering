@@ -67,7 +67,7 @@ class MLP(nn.Module):
 class MaskingFunction(torch.autograd.Function):
     
     @staticmethod
-    def forward(ctx, weight, input, mask, percentile, soft):
+    def forward(ctx, weight, input, mask, soft):
         ctx.save_for_backward(weight, input, mask)
         if soft:
             return F.linear(input * mask, weight) 
@@ -84,25 +84,22 @@ class MaskingFunction(torch.autograd.Function):
         grad_input = grad_output.matmul(weight)# * mask # 마스크의 영향을 제거한 그레이디언트
         sig_grad = mask * (1. - mask)
         grad_mask_ = ((grad_output @ weight) * input * sig_grad).sum(dim=0) 
-        
-        return weight_grad, grad_input, grad_mask_, None, None
+
+        return weight_grad, grad_input, grad_mask_, None
 
 
 class MaskingModel(nn.Module):
-    def __init__(self, input_dim, output_dim, soft = False, percentile = 0.5):
+    def __init__(self, input_dim, output_dim, soft = False):
         super(MaskingModel, self).__init__()
         self.soft = soft
         self.mask_scores = nn.Parameter(torch.ones(input_dim) * 0.01)
-        #self.register_buffer('mask_scores', torch.ones(input_dim))
-        self.percentile = percentile
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
-        #nn.init.orthogonal_(self.classifier.weight)
         self.register_buffer('gradient_accumulator', torch.zeros_like(self.mask_scores, dtype=torch.float32))
         self.register_buffer('weight_grad', torch.zeros_like(self.mask_scores, dtype=torch.float32))
         
     def forward(self, x):
         mask = F.sigmoid(self.mask_scores)
-        out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile, self.soft)
+        out = MaskingFunction.apply(self.classifier.weight, x, mask, self.soft)
         return out
     
     def accumulate_gradient(self):
@@ -110,7 +107,7 @@ class MaskingModel(nn.Module):
         self.weight_grad = self.classifier.weight.grad.std(dim=0)
         
         if self.weight_grad is None:
-            from util import ForkedPdb;ForkedPdb().set_trace()
+            import ipdb;ipdb.set_trace()
         
         # Calculate weighted gradient norm based on class counts
         self.gradient_accumulator += self.weight_grad
@@ -119,11 +116,7 @@ class MaskingModel(nn.Module):
         # Average the accumulated gradient norm over the epochs
         avg_grad_norm = self.gradient_accumulator / total_iter
         
-        # Update mask_scores for the bottom 80% only
         with torch.no_grad():
-            # threshold = torch.quantile(torch.abs(avg_grad_norm), self.percentile)
-            # mask = torch.abs(avg_grad_norm) >= threshold
-            # self.mask_scores[mask] -= avg_grad_norm[mask]
             self.mask_scores -= (curr_lr * 32.) * avg_grad_norm
         
         # Reset the gradient accumulator
