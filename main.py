@@ -59,7 +59,7 @@ def main(rank, world_size, port, seed, args):
     
     train_ds = My_dataset(data = args.data_type, split = 'train', shuffle=args.shuffle, ratio = args.ratio)
     valid_ds = My_dataset(data = args.data_type, split = 'val', shuffle=args.shuffle, ratio = args.ratio)
-    test_ds = My_dataset(data = args.data_type, split = 'test', shuffle=args.shuffle)
+    test_ds = My_dataset(data = args.data_type, split = 'test', shuffle=args.shuffle, ratio = args.ratio)
     if rank==0:print("Train DS: ", len(train_ds), "\n", "Valid Ds: ", len(valid_ds), "\n", "Test Ds: ", len(test_ds))
     
     num_classes = torch.max(train_ds.attr[:, 0]).item() + 1
@@ -162,7 +162,6 @@ def parse_args():
     parser.add_argument("--patience", type=int, help = 'Patience for Early Stopping', default=40)
     parser.add_argument("--weighted", action='store_true', help = 'Using Weighted CrossEntropy During Training')
     parser.add_argument("--train_clf", action='store_true', help = 'Train Model with Masked Classifier')
-    parser.add_argument("--percentile", type=float, help = 'Hyper-parameter for regularization term', default=0.5)
     
     parser.add_argument("--log_name", type=str, default=None)
     parser.add_argument("--ckpt", type=str, default=None, help = 'checkpoint for bert model')
