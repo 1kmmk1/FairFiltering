@@ -67,7 +67,7 @@ def train_ERM(rank,
             loss = criterion(output, target)
             preds = torch.argmax(output, dim=-1)
     
-            loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.classifier.weight, p=2) ** 2)
+            loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.mask_scores, p=2) ** 2)
 
             correct = (preds == target)
             loss_meter.add(loss.cpu(), attr.cpu())

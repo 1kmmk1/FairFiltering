@@ -83,9 +83,9 @@ class MaskingFunction(torch.autograd.Function):
         weight_grad = grad_output.T.matmul(input * mask)
         grad_input = grad_output.matmul(weight)# * mask # 마스크의 영향을 제거한 그레이디언트
         sig_grad = mask * (1. - mask)
-        #grad_mask = (grad_input * input * sig_grad).sum(dim=0)  
+        grad_mask = (grad_input * input * sig_grad).sum(dim=0)  
 
-        return weight_grad, grad_input, None, None
+        return weight_grad, grad_input, grad_mask, None
 
 
 class MaskingModel(nn.Module):
@@ -93,7 +93,7 @@ class MaskingModel(nn.Module):
         super(MaskingModel, self).__init__()
         self.soft = soft
         #self.mask_scores = nn.Parameter(torch.ones(input_dim) * 0.001)
-        self.register_buffer('mask_scores', torch.ones(input_dim) * 0.001)
+        self.register_buffer('mask_scores', torch.ones(input_dim) * 0.01)
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
         self.register_buffer('gradient_accumulator', torch.zeros_like(self.mask_scores, dtype=torch.float32))
         self.register_buffer('weight_grad', torch.zeros_like(self.mask_scores, dtype=torch.float32))
