@@ -68,7 +68,7 @@ def train_ERM(rank,
             preds = torch.argmax(output, dim=-1)
     
             loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.classifier.weight, p=2) ** 2)
-                
+
             correct = (preds == target)
             loss_meter.add(loss.cpu(), attr.cpu())
             acc_meter.add(correct.cpu(), attr.cpu())
@@ -100,10 +100,7 @@ def train_ERM(rank,
                 curr_lr = scheduler.get_last_lr()[0]
             else: 
                 curr_lr = args.learning_rate
-            if rank==0:
-                from util import ForkedPdb;ForkedPdb().set_trace()
             model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * args.WORLD_SIZE * UPDATE_FREQ)
-            #print(model.module.fc.mask_scores)
             
         if rank==0:
             print(f"Train ACC: {torch.mean(acc)},  Train WGA: {wga}")

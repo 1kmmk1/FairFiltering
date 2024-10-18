@@ -72,7 +72,7 @@ class MaskingFunction(torch.autograd.Function):
         if soft:
             return F.linear(input * mask, weight) 
         else:
-            new_mask = (mask <= 0.5).float()
+            new_mask = (mask >= 0.5).float()
             return F.linear(input * new_mask, weight)
 
 
@@ -80,20 +80,20 @@ class MaskingFunction(torch.autograd.Function):
     def backward(ctx, grad_output):
         weight, input, mask = ctx.saved_tensors
         # Compute the gradient for the weight
-        weight_grad = grad_output.T.matmul(input)
+        weight_grad = grad_output.T.matmul(input * mask)
         grad_input = grad_output.matmul(weight)# * mask # 마스크의 영향을 제거한 그레이디언트
         sig_grad = mask * (1. - mask)
-        grad_mask_ = ((grad_output @ weight) * input * sig_grad).sum(dim=0) 
-        ww = F.sigmoid(weight_grad.std(dim=0))
-        grad_mask = grad_mask_ * (ww)
-        return weight_grad, grad_input, grad_mask, None
+        #grad_mask = (grad_input * input * sig_grad).sum(dim=0)  
+
+        return weight_grad, grad_input, None, None
 
 
 class MaskingModel(nn.Module):
     def __init__(self, input_dim, output_dim, soft = False):
         super(MaskingModel, self).__init__()
         self.soft = soft
-        self.mask_scores = nn.Parameter(torch.rand(input_dim) * 0.001)
+        #self.mask_scores = nn.Parameter(torch.ones(input_dim) * 0.001)
+        self.register_buffer('mask_scores', torch.ones(input_dim) * 0.001)
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
         self.register_buffer('gradient_accumulator', torch.zeros_like(self.mask_scores, dtype=torch.float32))
         self.register_buffer('weight_grad', torch.zeros_like(self.mask_scores, dtype=torch.float32))
