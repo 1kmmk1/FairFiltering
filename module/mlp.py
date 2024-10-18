@@ -113,12 +113,12 @@ class MaskingModel(nn.Module):
         # Calculate weighted gradient norm based on class counts
         self.gradient_accumulator += self.weight_grad
     
-    def update_mask_scores(self, curr_lr, total_iter, bs):
+    def update_mask_scores(self, curr_lr, total_iter):
         # Average the accumulated gradient norm over the epochs
         avg_grad_norm = self.gradient_accumulator / total_iter
         
         with torch.no_grad():
-            self.mask_scores -= (curr_lr * (1/bs)) * avg_grad_norm
+            self.mask_scores -= (curr_lr * 0.1) * avg_grad_norm
         
         # Reset the gradient accumulator
         self.gradient_accumulator = torch.zeros_like(self.mask_scores)
