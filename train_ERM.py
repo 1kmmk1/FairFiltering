@@ -79,6 +79,8 @@ def train_ERM(rank,
             
             optimizer.zero_grad()
             loss_for_update.backward()
+            if args.train_clf:
+                model.module.fc.accumulate_gradient()
             optimizer.step()
             
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
@@ -86,13 +88,23 @@ def train_ERM(rank,
             acc = acc_meter.get_mean()
 
             if rank == 0:
-                #print(model.module.fc.gradient_accumulator)
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
-                if batch_idx % 10 == 0:
+                if batch_idx % 100 == 0:
                     wandb.log({"train/loss": loss_for_update.item(),
                             "train/acc": correct_sum / total,
                             "train/WGA": wga.item(),
                             })
+                    
+        if args.train_clf and epoch % UPDATE_FREQ == 0:
+            if scheduler is not None:
+                curr_lr = scheduler.get_last_lr()[0]
+            else: 
+                curr_lr = args.learning_rate
+            if rank==0:
+                from util import ForkedPdb;ForkedPdb().set_trace()
+            model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * args.WORLD_SIZE * UPDATE_FREQ)
+            #print(model.module.fc.mask_scores)
+            
         if rank==0:
             print(f"Train ACC: {torch.mean(acc)},  Train WGA: {wga}")
             pbar.close()

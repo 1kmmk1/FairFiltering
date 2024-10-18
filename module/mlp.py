@@ -72,7 +72,7 @@ class MaskingFunction(torch.autograd.Function):
         if soft:
             return F.linear(input * mask, weight) 
         else:
-            new_mask = (mask >= 0.5).float()
+            new_mask = (mask <= 0.5).float()
             return F.linear(input * new_mask, weight)
 
 
