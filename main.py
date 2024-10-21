@@ -168,7 +168,6 @@ def parse_args():
     
     parser.add_argument('--soft', action='store_true', help='')
     
-    parser.add_argument('--SEED', type=int, default=1001, help='Random Seed')
     parser.add_argument('--WORLD_SIZE', type=int, default=2, help='number of distributed processes')
     parser.add_argument('--PORT', type=str, default='12322', help='number of Master PORT Number')
     parser.add_argument('--fup', type=bool, default=False, help='Fine unused parameters for DDP')
