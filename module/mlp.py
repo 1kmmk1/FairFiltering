@@ -92,8 +92,8 @@ class MaskingModel(nn.Module):
     def __init__(self, input_dim, output_dim, soft = False):
         super(MaskingModel, self).__init__()
         self.soft = soft
-        self.mask_scores = nn.Parameter(torch.ones(input_dim) * 0.001)
-        #self.register_buffer('mask_scores', torch.rand(input_dim) * 0.001)
+        #self.mask_scores = nn.Parameter(torch.ones(input_dim) * 0.001)
+        self.register_buffer('mask_scores', torch.rand(input_dim) * 0.001)
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
         self.register_buffer('gradient_accumulator', torch.zeros_like(self.mask_scores, dtype=torch.float32))
         self.register_buffer('weight_grad', torch.zeros_like(self.mask_scores, dtype=torch.float32))
@@ -116,10 +116,20 @@ class MaskingModel(nn.Module):
     def update_mask_scores(self, curr_lr, total_iter):
         # Average the accumulated gradient norm over the epochs
         avg_grad_norm = self.gradient_accumulator / total_iter
-
+        
+        masked_indices = (F.sigmoid(self.mask_scores) <= 0.5).nonzero(as_tuple=True)[0]
+        # with torch.no_grad():
+        #     self.mask_scores -= (curr_lr * 10) * avg_grad_norm
+        
+        # Reset the gradient accumulator
+        unmasked_grad_norm = avg_grad_norm.clone()
+        unmasked_grad_norm[masked_indices] = float('-inf')
+        #print((F.sigmoid(self.mask_scores) <= 0.5).sum())
+        #import ipdb;ipdb.set_trace()
+        _, max_idx = torch.topk(unmasked_grad_norm, 1)
         # 새로 마스킹할 인덱스의 mask_scores를 -1로 업데이트
-        self.mask_scores.data -= (curr_lr) * avg_grad_norm
-        # self.gradient_accumulator = torch.zeros_like(self.mask_scores)
+        self.mask_scores[max_idx].data = -1
+        self.gradient_accumulator = torch.zeros_like(self.mask_scores)
         # self.weight_grad = torch.zeros_like(self.mask_scores)
     
 
