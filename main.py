@@ -88,18 +88,18 @@ def main(rank, world_size, port, seed, args):
         for key, value in vars(args).items():
             print(f"{key}: {value}")            
     
-    group_acc, val_acc, val_wga, epoch = train_ERM(rank, train_dl, valid_dl, train_sampler, valid_sampler, attr_dims, ddp_model, optimizer, scheduler, args)
+    #group_acc, val_acc, val_wga, epoch = train_ERM(rank, train_dl, valid_dl, train_sampler, valid_sampler, attr_dims, ddp_model, optimizer, scheduler, args)
     
     if rank == 0:
-        print("Valid Acc: ", val_acc)
-        print("Valid WGA: ", val_wga)
+        # print("Valid Acc: ", val_acc)
+        # print("Valid WGA: ", val_wga)
 
-        np.save(f"log/{args.log_name}/validation_result", np.array(group_acc.get_mean()))
+        # np.save(f"log/{args.log_name}/validation_result", np.array(group_acc.get_mean()))
 
         #TODO: Test
         print("*"*15, "Test Start!", "*"*15)   
         main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft) 
-        state_dict = torch.load(os.path.join("log", f"{args.log_name}", f"model_{epoch}.th"))
+        state_dict = torch.load(os.path.join("log", f"{args.log_name}", "model_10.th"))
         main_model.load_state_dict(state_dict['state_dict'], strict=True)
         main_model = main_model.to(rank)
 
@@ -168,7 +168,7 @@ def parse_args():
     
     parser.add_argument('--soft', action='store_true', help='')
     
-    parser.add_argument('--SEED', type=int, default=17, help='Random Seed')
+    parser.add_argument('--SEED', type=int, default=1001, help='Random Seed')
     parser.add_argument('--WORLD_SIZE', type=int, default=2, help='number of distributed processes')
     parser.add_argument('--PORT', type=str, default='12322', help='number of Master PORT Number')
     parser.add_argument('--fup', type=bool, default=False, help='Fine unused parameters for DDP')

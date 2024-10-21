@@ -19,7 +19,21 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
+import math
 
+def get_inverse_cosine_lr(current_epoch, T_max, eta_max=0.1, eta_min=0.0001):
+    """
+    반대되는 CosineAnnealing 학습률을 계산하는 함수.
+    
+    :param current_epoch: 현재 에포크 (0부터 시작)
+    :param T_max: 총 에포크 수
+    :param eta_max: 최대 학습률 (학습 후반에 다다랐을 때)
+    :param eta_min: 최소 학습률 (학습 초기에 설정할 값)
+    :return: 현재 에포크에서의 학습률
+    """
+    return eta_min + (eta_max - eta_min) * (1 + math.cos(math.pi * (current_epoch / T_max))) / 2
+
+        
 def train_ERM(rank, 
             train_dl,
             valid_dl,
@@ -89,7 +103,7 @@ def train_ERM(rank,
 
             if rank == 0:
                 pbar.set_postfix(epoch = f"{epoch}/{args.epochs}", loss = "{:.4f}, acc = {:.4f}".format(loss_for_update.detach().cpu().item(), correct_sum / total))
-                if batch_idx % 100 == 0:
+                if batch_idx % 40 == 0:
                     wandb.log({"train/loss": loss_for_update.item(),
                             "train/acc": correct_sum / total,
                             "train/WGA": wga.item(),
@@ -97,7 +111,7 @@ def train_ERM(rank,
                     
         if args.train_clf and epoch % UPDATE_FREQ == 0:
             if scheduler is not None:
-                curr_lr = scheduler.get_last_lr()[0]
+                curr_lr = get_inverse_cosine_lr(current_epoch=epoch, T_max=args.epochs, eta_max=args.learning_rate, eta_min=0.0001)
             else: 
                 curr_lr = args.learning_rate
             model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * args.WORLD_SIZE * UPDATE_FREQ)
