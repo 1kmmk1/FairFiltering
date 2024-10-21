@@ -102,7 +102,7 @@ def multi_brier(y_true, y_proba, num_classes, return_sample=True):
 #TODO: Save embeddings
 def save_embed(rank, model, data_loader, log_name, data='img'):
     
-    assert rank ==0
+    #assert rank ==0
     
     if data in ['Waterbirds', 'CelebA']:
         def get_embed(m, x):
@@ -169,6 +169,8 @@ def load_scheduler(optimizer, args):
     
     elif args.main_scheduler_tag == "linear":
         scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.05, total_iters=50)        
+    elif args.main_optimizer_tag == "None":  
+        optimizer = None
     elif args.main_scheduler_tag == "cosine_wp":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0 = 10, T_multi=2)
     else:
