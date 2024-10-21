@@ -172,7 +172,6 @@ def parse_args():
     parser.add_argument('--PORT', type=str, default='12322', help='number of Master PORT Number')
     parser.add_argument('--fup', type=bool, default=False, help='Fine unused parameters for DDP')
     
-    
     args = parser.parse_args()
     
     if args.log_name is None:
