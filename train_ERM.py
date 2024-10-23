@@ -61,7 +61,7 @@ def train_ERM(rank,
     for epoch in range(1, args.epochs+1):
 
         model.train()
-
+        
         total = 0; correct_sum = 0
         train_sampler.set_epoch(epoch) if train_sampler is not None else ''
         if rank == 0 or rank =='cuda:0':
@@ -93,8 +93,14 @@ def train_ERM(rank,
             
             optimizer.zero_grad()
             loss_for_update.backward()
-            if args.train_clf:
-                model.module.fc.accumulate_gradient()
+            if model.module.fc.classifier.weight.grad is not None:
+                grad = model.module.fc.classifier.weight.grad.detach().clone().t()  # Shape: (input_dim, output_dim)
+                gradient_list.append(grad)  # List에 추가
+            
+                # 마스킹된 가중치의 그레이디언트를 0으로 설정하여 업데이트 방지
+            with torch.no_grad():
+                # 마스크가 0인 곳의 그레이디언트를 0으로
+                model.module.fc.classifier.weight.grad *= model.module.fc.mask.t()
             optimizer.step()
             
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
@@ -122,7 +128,18 @@ def train_ERM(rank,
             
         if scheduler is not None:
             scheduler.step()
-
+            
+        all_grads = torch.stack(gradient_list)
+        grad_std = all_grads.std(dim=0)
+        _, max_idx = grad_std.view(-1).max(0)
+        max_i = max_idx // attr_dims[0]
+        max_j = max_idx % attr_dims[0]
+        max_i = max_i.item()
+        max_j = max_j.item()
+        
+                # 해당 가중치 마스킹
+        model.module.fc.mask_weight(max_i, max_j)
+        
         if valid_dl is not None:
             model.eval()
 
