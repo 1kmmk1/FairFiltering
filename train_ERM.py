@@ -60,6 +60,8 @@ def train_ERM(rank,
     #TODO: Train Feature Extractor 
     for epoch in range(1, args.epochs+1):
 
+        gradient_list = []
+        
         model.train()
         
         total = 0; correct_sum = 0
@@ -81,7 +83,7 @@ def train_ERM(rank,
             loss = criterion(output, target)
             preds = torch.argmax(output, dim=-1)
     
-            loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.mask_scores, p=2) ** 2)
+            loss_for_update = loss.mean()
 
             correct = (preds == target)
             loss_meter.add(loss.cpu(), attr.cpu())
@@ -114,13 +116,6 @@ def train_ERM(rank,
                             "train/acc": correct_sum / total,
                             "train/WGA": wga.item(),
                             })
-                    
-        if args.train_clf and epoch % UPDATE_FREQ == 0:
-            if scheduler is not None:
-                curr_lr = get_inverse_cosine_lr(current_epoch=epoch, T_max=args.epochs, eta_max=args.learning_rate, eta_min=0.0001)
-            else: 
-                curr_lr = args.learning_rate
-            model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * args.WORLD_SIZE * UPDATE_FREQ)
             
         if rank==0:
             print(f"Train ACC: {torch.mean(acc)},  Train WGA: {wga}")
