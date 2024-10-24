@@ -99,16 +99,15 @@ class STEFunction(torch.autograd.Function):
         sigmoid_output = torch.sigmoid(input)
         sigmoid_grad = sigmoid_output * (1 - sigmoid_output)
         
-        positive_grad = torch.clamp(grad_output, max=0)
+        positive_grad = torch.clamp(grad_output, max=0.5, min=-0.5)
         
         grad_input = positive_grad * sigmoid_grad
         
-        grad_input = torch.clamp(grad_input, min=0)
+        grad_input = torch.clamp(grad_input, max=0.5, min=-0.5)
         
         return grad_input
     
 
-        self.gradient_accumulator = torch.zeros_like(self.mask_scores)
 class MaskingModel(nn.Module):
     def __init__(self, input_dim, output_dim, soft):
         super(MaskingModel, self).__init__()
