@@ -127,12 +127,12 @@ def train_ERM(rank,
         if args.train_clf:
             all_grads = torch.stack(gradient_list)
             grad_std = all_grads.std(dim=0)
-            _, max_idx = grad_std.view(-1).max(0)
+            _, max_idx = grad_std.view(-1).min(0)
             max_i = max_idx // attr_dims[0]
             max_j = max_idx % attr_dims[0]
             max_i = max_i.item()
             max_j = max_j.item()
-            
+
             # 해당 가중치 마스킹
             model.module.fc.mask_weight(max_i, max_j)
         
