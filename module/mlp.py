@@ -114,7 +114,7 @@ class MaskingModel(nn.Module):
         
     def forward(self, x):
         mask = STEFunction.apply(F.sigmoid(self.mask_scores))
-        out = self.classifier(x * mask)
+        out = F.linear(x * mask, self.classifier.weight * self.mask.t())
         return out
     
     def accumulate_gradient(self):
@@ -132,6 +132,36 @@ class MaskingModel(nn.Module):
             j (int): output dimension 인덱스
         """
         self.mask[i, j] = 0.0
+        
+    def mask_gradients(self, gradient_list, k=10):
+        """
+        이전에 마스킹된 가중치를 제외하고, 새로운 가중치를 마스킹합니다.
+        Args:
+            model (FullyConnectedLayer): 마스킹을 적용할 모델의 FC 레이어
+            gradient_list (list of torch.Tensor): 각 iteration마다 수집된 그라디언트 리스트
+            k (int): 마스킹할 가중치의 개수
+        """
+        all_grads = torch.stack(gradient_list)  # Shape: (iterations, dim1, dim2)
+        grad_std = all_grads.std(dim=0)        # Shape: (dim1, dim2)
+
+        # 이미 마스킹된 가중치를 제외하기 위해 grad_std를 수정
+        grad_std_masked = grad_std.clone()
+        grad_std_masked[self.mask == 0.0] = float('-inf')  # 마스크된 위치는 무시
+
+        # 가장 작은 k개의 표준편차 값을 찾기
+        _, min_indices = torch.topk(grad_std_masked.view(-1), k, largest=False, sorted=True)
+
+        # 원래 차원으로 인덱스 변환
+        attr_dims = grad_std.shape
+        if len(attr_dims) == 2:
+            _, dim2 = attr_dims
+            max_i = (min_indices // dim2).tolist()
+            max_j = (min_indices % dim2).tolist()
+        else:
+            raise NotImplementedError("마스킹 로직은 2D 텐서에 대해서만 구현되었습니다.")
+
+        # 해당 가중치 마스킹
+        self.mask_weight(max_i, max_j)
 
 if __name__ == "__main__":
     pass
