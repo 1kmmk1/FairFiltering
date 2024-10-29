@@ -199,6 +199,11 @@ def train_ERM(rank,
             
             if PATIENCE > args.patience:
                 if args.early_stopping:    
+                    early_stop_tensor = torch.tensor(1).to('cuda')
+                    dist.broadcast(early_stop_tensor, src=0)
+                    if rank == 0:
+                        print("Early stopping triggered. Exiting training.")
                     break
+
 
     return BEST_GROUP_ACC, BEST_ACC, BEST_SCORE, BEST_EPOCH
