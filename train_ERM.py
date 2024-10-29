@@ -118,13 +118,6 @@ def train_ERM(rank,
                             "train/WGA": wga.item(),
                             })
                     
-        # if args.train_clf and epoch % UPDATE_FREQ == 0:
-        #     if scheduler is not None:
-        #         curr_lr = get_inverse_cosine_lr(current_epoch=epoch, T_max=args.epochs, eta_max=args.learning_rate, eta_min=0.0001)
-        #     else: 
-        #         curr_lr = args.learning_rate
-        #     model.module.fc.update_mask_scores(curr_lr, (batch_idx + 1) * args.WORLD_SIZE * UPDATE_FREQ)
-            
         if rank==0:
             print(f"Train ACC: {torch.mean(acc)},  Train WGA: {wga}")
             pbar.close()
@@ -133,16 +126,7 @@ def train_ERM(rank,
             scheduler.step()
             
         if args.train_clf:
-            all_grads = torch.stack(gradient_list)
-            grad_std = all_grads.std(dim=0)
-            _, max_idx = grad_std.view(-1).max(0)
-            max_i = max_idx // attr_dims[0]
-            max_j = max_idx % attr_dims[0]
-            max_i = max_i.item()
-            max_j = max_j.item()
-            
-            # 해당 가중치 마스킹
-            model.module.fc.mask_weight(max_i, max_j)
+            model.module.fc.mask_gradients(gradient_list, 10)
             
         if valid_dl is not None:
             model.eval()
