@@ -100,8 +100,20 @@ class STEFunction(torch.autograd.Function):
         sigmoid_grad = input * (1. - input)
         return grad_output * sigmoid_grad
     
-
-        self.gradient_accumulator = torch.zeros_like(self.mask_scores)
+    # @staticmethod
+    # def backward(ctx, grad_output):
+    #     input, = ctx.saved_tensors
+    #     sigmoid_output = torch.sigmoid(input)
+    #     sigmoid_grad = sigmoid_output * (1 - sigmoid_output)
+        
+    #     positive_grad = torch.clamp(grad_output, max=0)
+        
+    #     grad_input = positive_grad * sigmoid_grad
+        
+    #     grad_input = torch.clamp(grad_input, min=0)
+        
+    #     return grad_input
+        
 class MaskingModel(nn.Module):
     def __init__(self, input_dim, output_dim, soft):
         super(MaskingModel, self).__init__()
@@ -114,13 +126,16 @@ class MaskingModel(nn.Module):
         
     def forward(self, x):
         mask = STEFunction.apply(F.sigmoid(self.mask_scores))
-        out = F.linear(x * mask, self.classifier.weight * self.mask.t())
+        out = self.classifier(x*mask)
         return out
     
     def accumulate_gradient(self):
         # Gather gradients from all processes in DDP
         self.weight_grad = self.classifier.weight.grad.std(dim=0)
-
+        
+        if self.weight_grad is None:
+            import ipdb;ipdb.set_trace()
+        
         # Calculate weighted gradient norm based on class counts
         self.gradient_accumulator += self.weight_grad
     
@@ -131,7 +146,9 @@ class MaskingModel(nn.Module):
             i (int): input dimension 인덱스
             j (int): output dimension 인덱스
         """
-        self.mask[i, j] = 0.0
+        i_tensor = torch.tensor(i, dtype=torch.long, device=self.mask.device)
+        j_tensor = torch.tensor(j, dtype=torch.long, device=self.mask.device)
+        self.mask[i_tensor, j_tensor] = 0.0
         
     def mask_gradients(self, gradient_list, k=10):
         """
@@ -162,6 +179,26 @@ class MaskingModel(nn.Module):
 
         # 해당 가중치 마스킹
         self.mask_weight(max_i, max_j)
+    
+    # def update_mask_scores(self, curr_lr, total_iter):
+    #     # Average the accumulated gradient norm over the epochs
+    #     avg_grad_norm = self.gradient_accumulator / total_iter
+        
+    #     masked_indices = (F.sigmoid(self.mask_scores) <= 0.5).nonzero(as_tuple=True)[0]
+    #     # with torch.no_grad():
+    #     #     self.mask_scores -= (curr_lr * 10) * avg_grad_norm
+        
+    #     # Reset the gradient accumulator
+    #     unmasked_grad_norm = avg_grad_norm.clone()
+    #     unmasked_grad_norm[masked_indices] = float('-inf')
+    #     #print((F.sigmoid(self.mask_scores) <= 0.5).sum())
+    #     #import ipdb;ipdb.set_trace()
+    #     _, max_idx = torch.topk(unmasked_grad_norm, 20)
+    #     # 새로 마스킹할 인덱스의 mask_scores를 -1로 업데이트
+    #     self.mask_scores[max_idx] = -1.
+        
+    #     self.gradient_accumulator = torch.zeros_like(self.mask_scores)
+    #     # self.weight_grad = torch.zeros_like(self.mask_scores)
 
 if __name__ == "__main__":
     pass
