@@ -100,19 +100,19 @@ class STEFunction(torch.autograd.Function):
         sigmoid_grad = input * (1. - input)
         return grad_output * sigmoid_grad
     
-    # @staticmethod
-    # def backward(ctx, grad_output):
-    #     input, = ctx.saved_tensors
-    #     sigmoid_output = torch.sigmoid(input)
-    #     sigmoid_grad = sigmoid_output * (1 - sigmoid_output)
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, = ctx.saved_tensors
+        sigmoid_output = torch.sigmoid(input)
+        sigmoid_grad = sigmoid_output * (1 - sigmoid_output)
         
-    #     positive_grad = torch.clamp(grad_output, max=0)
+        positive_grad = torch.clamp(grad_output, max=0)
         
-    #     grad_input = positive_grad * sigmoid_grad
+        grad_input = positive_grad * sigmoid_grad
         
-    #     grad_input = torch.clamp(grad_input, min=0)
+        grad_input = torch.clamp(grad_input, min=0)
         
-    #     return grad_input
+        return grad_input
         
 class MaskingModel(nn.Module):
     def __init__(self, input_dim, output_dim, soft):
@@ -126,7 +126,8 @@ class MaskingModel(nn.Module):
         
     def forward(self, x):
         mask = STEFunction.apply(F.sigmoid(self.mask_scores))
-        out = self.classifier(x*mask)
+        #out = self.classifier(x*mask)
+        out = F.linear(x*mask, self.classifier.weight * mask.t())
         return out
     
     def accumulate_gradient(self):
@@ -148,7 +149,7 @@ class MaskingModel(nn.Module):
         """
         i_tensor = torch.tensor(i, dtype=torch.long, device=self.mask.device)
         j_tensor = torch.tensor(j, dtype=torch.long, device=self.mask.device)
-        self.mask[i_tensor, j_tensor] = 0.0
+        self.mask[i_tensor, j_tensor] = 0.1
         
     def mask_gradients(self, gradient_list, k=10):
         """
@@ -163,10 +164,10 @@ class MaskingModel(nn.Module):
 
         # 이미 마스킹된 가중치를 제외하기 위해 grad_std를 수정
         grad_std_masked = grad_std.clone()
-        grad_std_masked[self.mask == 0.0] = float('-inf')  # 마스크된 위치는 무시
+        grad_std_masked[self.mask == 0.1] = float('-inf')  # 마스크된 위치는 무시
 
         # 가장 작은 k개의 표준편차 값을 찾기
-        _, min_indices = torch.topk(grad_std_masked.view(-1), k, largest=False, sorted=True)
+        _, min_indices = torch.topk(grad_std_masked.view(-1), k, largest=True, sorted=True)
 
         # 원래 차원으로 인덱스 변환
         attr_dims = grad_std.shape

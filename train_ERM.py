@@ -100,10 +100,10 @@ def train_ERM(rank,
                 grad = model.module.fc.classifier.weight.grad.detach().clone().t()  # Shape: (input_dim, output_dim)
                 gradient_list.append(grad)  # List에 추가
             
-                # 마스킹된 가중치의 그레이디언트를 0으로 설정하여 업데이트 방지
-            with torch.no_grad():
-                # 마스크가 0인 곳의 그레이디언트를 0으로
-                model.module.fc.classifier.weight.grad *= model.module.fc.mask.t()
+            #     # 마스킹된 가중치의 그레이디언트를 0으로 설정하여 업데이트 방지
+            # with torch.no_grad():
+            #     # 마스크가 0인 곳의 그레이디언트를 0으로
+            #     model.module.fc.classifier.weight.grad *= model.module.fc.mask.t()
             optimizer.step()
             
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
@@ -168,7 +168,6 @@ def train_ERM(rank,
             val_acc = torch.mean(group_acc.get_mean())
             val_wga = torch.min(group_acc.get_mean())
         
-            
             if rank ==0:
                 print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
                 wandb.log({"valid/loss": loss_for_update.item(),
@@ -203,7 +202,8 @@ def train_ERM(rank,
                     dist.broadcast(early_stop_tensor, src=0)
                     if rank == 0:
                         print("Early stopping triggered. Exiting training.")
-                    break
+                    dist.barrier()
+                    dist.destroy_process_group()
 
 
     return BEST_GROUP_ACC, BEST_ACC, BEST_SCORE, BEST_EPOCH
