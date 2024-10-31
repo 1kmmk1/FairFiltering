@@ -66,13 +66,10 @@ class MLP(nn.Module):
 class MaskingFunction(torch.autograd.Function):
     
     @staticmethod
-    def forward(ctx, weight, input, mask, soft):
+    def forward(ctx, weight, input, mask):
         ctx.save_for_backward(weight, input, mask)
-        if soft:
-            return F.linear(input * mask, weight) 
-        else:
-            new_mask = (mask >= 0.5).float()
-            return F.linear(input * new_mask, weight)
+        new_mask = (mask >= 0.5).float()
+        return F.linear(input * new_mask, weight)
 
 
     @staticmethod
@@ -81,43 +78,16 @@ class MaskingFunction(torch.autograd.Function):
         # Compute the gradient for the weight
         weight_grad = grad_output.T.matmul(input)
         grad_input = grad_output.matmul(weight)# * mask # 마스크의 영향을 제거한 그레이디언트
-        sig_grad = mask * (1. - mask)
-        grad_mask = F.sigmoid(weight_grad.std(dim=0)) * ((grad_output @ weight)*input * sig_grad).sum(dim=0) 
+        #sig_grad = mask * (1. - mask)
+        #grad_mask = F.sigmoid(weight_grad.std(dim=0)) * ((grad_output @ weight)*input * sig_grad).sum(dim=0) 
         #grad_mask = weight_grad.std(dim=0)
         
-        return weight_grad, grad_input, None, None
-
-class STEFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, input):
-        ctx.save_for_backward(input)
-        return (input > torch.mean(input).item()).float()
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        input, = ctx.saved_tensors
-        #from util import ForkedPdb;ForkedPdb().set_trace()
-        sigmoid_grad = input * (1. - input)
-        return grad_output * sigmoid_grad
-    
-    @staticmethod
-    def backward(ctx, grad_output):
-        input, = ctx.saved_tensors
-        sigmoid_output = torch.sigmoid(input)
-        sigmoid_grad = sigmoid_output * (1 - sigmoid_output)
-        
-        positive_grad = torch.clamp(grad_output, max=0)
-        
-        grad_input = positive_grad * sigmoid_grad
-        
-        grad_input = torch.clamp(grad_input, min=0)
-        
-        return grad_input
+        return weight_grad, grad_input, None,
         
 class MaskingModel(nn.Module):
     def __init__(self, input_dim, output_dim, soft):
         super(MaskingModel, self).__init__()
-        self.mask_scores = nn.Parameter(torch.randn(input_dim))
+        self.mask_scores = nn.Parameter(torch.randn(input_dim)*0.001)
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
         
         self.register_buffer('gradient_accumulator', torch.zeros_like(self.mask_scores, dtype=torch.float32))
@@ -125,20 +95,19 @@ class MaskingModel(nn.Module):
         self.register_buffer('mask', torch.ones(input_dim, output_dim))
         
     def forward(self, x):
-        mask = STEFunction.apply(F.sigmoid(self.mask_scores))
+        #mask = STEFunction.apply(F.sigmoid(self.mask_scores))
+        mask = F.sigmoid(self.mask_scores)
         #out = self.classifier(x*mask)
-        out = F.linear(x*mask, self.classifier.weight * mask.t())
+        out = MaskingFunction.apply(self.classifier.weight, x, mask)
+        #out = F.linear(x*mask, self.classifier.weight * mask.t())
         return out
     
-    def accumulate_gradient(self):
-        # Gather gradients from all processes in DDP
-        self.weight_grad = self.classifier.weight.grad.std(dim=0)
+    # def accumulate_gradient(self):
+    #     # Gather gradients from all processes in DDP
+    #     self.weight_grad = self.classifier.weight.grad.std(dim=0)
         
-        if self.weight_grad is None:
-            import ipdb;ipdb.set_trace()
-        
-        # Calculate weighted gradient norm based on class counts
-        self.gradient_accumulator += self.weight_grad
+    #     # Calculate weighted gradient norm based on class counts
+    #     self.gradient_accumulator += self.weight_grad
     
     def mask_weight(self, i, j):
         """
@@ -149,25 +118,20 @@ class MaskingModel(nn.Module):
         """
         i_tensor = torch.tensor(i, dtype=torch.long, device=self.mask.device)
         j_tensor = torch.tensor(j, dtype=torch.long, device=self.mask.device)
-        self.mask[i_tensor, j_tensor] = 0.1
+        self.mask[i_tensor, j_tensor] = 0.5
         
-    def mask_gradients(self, gradient_list, k=10):
-        """
-        이전에 마스킹된 가중치를 제외하고, 새로운 가중치를 마스킹합니다.
-        Args:
-            model (FullyConnectedLayer): 마스킹을 적용할 모델의 FC 레이어
-            gradient_list (list of torch.Tensor): 각 iteration마다 수집된 그라디언트 리스트
-            k (int): 마스킹할 가중치의 개수
-        """
+        
+    def mask_gradients(self, gradient_list, k=100):
+
         all_grads = torch.stack(gradient_list)  # Shape: (iterations, dim1, dim2)
         grad_std = all_grads.std(dim=0)        # Shape: (dim1, dim2)
 
-        # 이미 마스킹된 가중치를 제외하기 위해 grad_std를 수정
-        grad_std_masked = grad_std.clone()
-        grad_std_masked[self.mask == 0.1] = float('-inf')  # 마스크된 위치는 무시
+        # # 이미 마스킹된 가중치를 제외하기 위해 grad_std를 수정
+        # grad_std_masked = grad_std.clone()
+        # grad_std_masked[self.mask == 0.5] = float('-inf')  # 마스크된 위치는 무시
 
         # 가장 작은 k개의 표준편차 값을 찾기
-        _, min_indices = torch.topk(grad_std_masked.view(-1), k, largest=True, sorted=True)
+        _, min_indices = torch.topk(grad_std.view(-1), k, largest=True, sorted=True)
 
         # 원래 차원으로 인덱스 변환
         attr_dims = grad_std.shape
@@ -180,8 +144,8 @@ class MaskingModel(nn.Module):
 
         # 해당 가중치 마스킹
         self.mask_weight(max_i, max_j)
-    
-    # def update_mask_scores(self, curr_lr, total_iter):
+
+    # def update_mask_scores(self, total_iter):
     #     # Average the accumulated gradient norm over the epochs
     #     avg_grad_norm = self.gradient_accumulator / total_iter
         
@@ -194,7 +158,7 @@ class MaskingModel(nn.Module):
     #     unmasked_grad_norm[masked_indices] = float('-inf')
     #     #print((F.sigmoid(self.mask_scores) <= 0.5).sum())
     #     #import ipdb;ipdb.set_trace()
-    #     _, max_idx = torch.topk(unmasked_grad_norm, 20)
+    #     _, max_idx = torch.topk(unmasked_grad_norm, 5)
     #     # 새로 마스킹할 인덱스의 mask_scores를 -1로 업데이트
     #     self.mask_scores[max_idx] = -1.
         

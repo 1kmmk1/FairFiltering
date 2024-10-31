@@ -99,7 +99,7 @@ def main(rank, world_size, port, seed, args):
         #TODO: Test
         print("*"*15, "Test Start!", "*"*15)   
         main_model = get_model(model_tag=args.model, num_classes=attr_dims[0], train_clf=args.train_clf, soft = args.soft) 
-        state_dict = torch.load(os.path.join("log", f"{args.log_name}", f"model_{epoch}.th"))
+        state_dict = torch.load(os.path.join("log", f"{args.log_name}", "model_8.th"))
         main_model.load_state_dict(state_dict['state_dict'], strict=True)
         main_model = main_model.to(rank)
 

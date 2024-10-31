@@ -54,7 +54,7 @@ def train_ERM(rank,
     else:
         criterion = nn.CrossEntropyLoss(reduction = 'none')
 
-    BEST_SCORE: float = 0.
+    BEST_LOSS: float = 10000.
     PATIENCE: int = 0    
     UPDATE_FREQ: int = 1
     #TODO: Train Feature Extractor 
@@ -100,10 +100,10 @@ def train_ERM(rank,
                 grad = model.module.fc.classifier.weight.grad.detach().clone().t()  # Shape: (input_dim, output_dim)
                 gradient_list.append(grad)  # List에 추가
             
-            #     # 마스킹된 가중치의 그레이디언트를 0으로 설정하여 업데이트 방지
-            # with torch.no_grad():
-            #     # 마스크가 0인 곳의 그레이디언트를 0으로
-            #     model.module.fc.classifier.weight.grad *= model.module.fc.mask.t()
+                # 마스킹된 가중치의 그레이디언트를 0으로 설정하여 업데이트 방지
+            with torch.no_grad():
+                # 마스크가 0인 곳의 그레이디언트를 0으로
+                model.module.fc.classifier.weight.grad *= model.module.fc.mask.t()
             optimizer.step()
             
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
@@ -126,7 +126,7 @@ def train_ERM(rank,
             scheduler.step()
             
         if args.train_clf:
-            model.module.fc.mask_gradients(gradient_list, 10)
+            model.module.fc.mask_gradients(gradient_list, 100)
             
         if valid_dl is not None:
             model.eval()
@@ -165,6 +165,7 @@ def train_ERM(rank,
             if rank == 0:
                 pbar.close()
             
+            VAL_LOSS = sum_loss / ((batch_idx + 1) * dist.get_world_size())
             val_acc = torch.mean(group_acc.get_mean())
             val_wga = torch.min(group_acc.get_mean())
         
@@ -174,8 +175,11 @@ def train_ERM(rank,
                             "valid/acc": eq_acc, 
                             "valid/WGA": val_wga.item(),
                             })
+            
+            
+            if VAL_LOSS < BEST_LOSS:
+                BEST_LOSS = VAL_LOSS
                 
-            if val_wga.item() > BEST_SCORE:
                 BEST_SCORE = val_wga.item()
                 BEST_ACC = eq_acc
                 BEST_EPOCH = epoch
