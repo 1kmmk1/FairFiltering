@@ -20,19 +20,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
 import math
-
-def get_inverse_cosine_lr(current_epoch, T_max, eta_max=0.1, eta_min=0.0001):
-    """
-    반대되는 CosineAnnealing 학습률을 계산하는 함수.
-    
-    :param current_epoch: 현재 에포크 (0부터 시작)
-    :param T_max: 총 에포크 수
-    :param eta_max: 최대 학습률 (학습 후반에 다다랐을 때)
-    :param eta_min: 최소 학습률 (학습 초기에 설정할 값)
-    :return: 현재 에포크에서의 학습률
-    """
-    return eta_min + (eta_max - eta_min) * (1 + math.cos(math.pi * (current_epoch / T_max))) / 2
-
         
 def train_ERM(rank, 
             train_dl,
@@ -84,7 +71,7 @@ def train_ERM(rank,
             loss = criterion(output, target)
             preds = torch.argmax(output, dim=-1)
     
-            loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.classifier.weight.data, p=1))
+            loss_for_update = loss.mean() + (args.weight_decay) * (torch.norm(model.module.fc.classifier.weight.data, p=1))
 
             correct = (preds == target)
             loss_meter.add(loss.cpu(), attr.cpu())
@@ -121,12 +108,12 @@ def train_ERM(rank,
             model.eval()
 
             valid_sampler.set_epoch(epoch) if valid_sampler is not None else ''
-        
+
             if rank == 0 or rank =='cuda:0':
                 pbar = tqdm(valid_dl, file=sys.stdout)
             else:
                 pbar = valid_dl
-            
+
             group_acc = MultiDimAverageMeter(attr_dims)
             sum_loss = 0;
             total = 0;correct_sum = 0
@@ -157,7 +144,7 @@ def train_ERM(rank,
             VAL_LOSS = sum_loss / ((batch_idx + 1) * dist.get_world_size())
             val_acc = torch.mean(group_acc.get_mean())
             val_wga = torch.min(group_acc.get_mean())
-        
+
             if rank ==0:
                 print("Valid acc: {:.2f}, Valid WGA: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
                 wandb.log({"valid/loss": loss_for_update.item(),
