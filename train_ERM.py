@@ -54,7 +54,7 @@ def train_ERM(rank,
     else:
         criterion = nn.CrossEntropyLoss(reduction = 'none')
 
-    BEST_LOSS: float = 10000.
+    BEST_SCORE: float = 0.
     PATIENCE: int = 0    
     UPDATE_FREQ: int = 1
     #TODO: Train Feature Extractor 
@@ -84,7 +84,7 @@ def train_ERM(rank,
             loss = criterion(output, target)
             preds = torch.argmax(output, dim=-1)
     
-            loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.mask_scores, p=2) ** 2)
+            loss_for_update = loss.mean() + (args.weight_decay*10) * (torch.norm(model.module.fc.classifier.weight.data, p=1))
 
             correct = (preds == target)
             loss_meter.add(loss.cpu(), attr.cpu())
@@ -96,16 +96,8 @@ def train_ERM(rank,
             
             optimizer.zero_grad()
             loss_for_update.backward()
-            if model.module.fc.classifier.weight.grad is not None:
-                grad = model.module.fc.classifier.weight.grad.detach().clone().t()  # Shape: (input_dim, output_dim)
-                gradient_list.append(grad)  # List에 추가
             
-                # 마스킹된 가중치의 그레이디언트를 0으로 설정하여 업데이트 방지
-            with torch.no_grad():
-                # 마스크가 0인 곳의 그레이디언트를 0으로
-                model.module.fc.classifier.weight.grad *= model.module.fc.mask.t()
             optimizer.step()
-            
             wga = torch.min(acc_meter.get_mean()) #* Worst group Acc
             loss = loss_meter.get_mean()
             acc = acc_meter.get_mean()
@@ -119,14 +111,11 @@ def train_ERM(rank,
                             })
                     
         if rank==0:
-            print(f"Train ACC: {torch.mean(acc)},  Train WGA: {wga}")
+            print(f"Train ACC: {round(torch.mean(acc).item()*100, 2)},  Train WGA: {round(wga.item()*100, 2)}")
             pbar.close()
             
         if scheduler is not None:
             scheduler.step()
-            
-        if args.train_clf:
-            model.module.fc.mask_gradients(gradient_list, 100)
             
         if valid_dl is not None:
             model.eval()
@@ -147,7 +136,7 @@ def train_ERM(rank,
                     img = img.to(rank); attr = attr.to(rank)
                     target = attr[:, 0]; 
                     
-                    output = model(img)
+                    output = model(img, eval=True)
                 
                     val_loss = criterion(output, target)
                     preds = torch.argmax(output, dim=-1)
@@ -170,16 +159,14 @@ def train_ERM(rank,
             val_wga = torch.min(group_acc.get_mean())
         
             if rank ==0:
-                print("Mean acc: {:.2f}, Worst Acc: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
+                print("Valid acc: {:.2f}, Valid WGA: {:.2f}".format(val_acc.item()*100, val_wga.item()*100))
                 wandb.log({"valid/loss": loss_for_update.item(),
                             "valid/acc": eq_acc, 
                             "valid/WGA": val_wga.item(),
                             })
             
             
-            if VAL_LOSS < BEST_LOSS:
-                BEST_LOSS = VAL_LOSS
-                
+            if val_wga.item() > BEST_SCORE:
                 BEST_SCORE = val_wga.item()
                 BEST_ACC = eq_acc
                 BEST_EPOCH = epoch

@@ -4,7 +4,6 @@ from tqdm import tqdm
 from util import MultiDimAverageMeter, cal_acc
 
 def evaluate(rank, model, data_loader,
-             target_attr_idx,
              attr_dims,
              ):
     
@@ -18,7 +17,7 @@ def evaluate(rank, model, data_loader,
             img, attr, idx = data
             img = img.to(rank); attr = attr.to(rank)
             
-            logit = model(img)
+            logit = model(img, eval=True)
             
             preds = torch.argmax(logit, dim=-1)    
 
