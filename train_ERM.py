@@ -66,7 +66,7 @@ def train_ERM(rank,
             imgs = imgs.to(rank); attr = attr.to(rank)
             target = attr[:, 0]
             
-            output = model(imgs)
+            output = model(imgs, eval=False)
             
             loss = criterion(output, target)
             preds = torch.argmax(output, dim=-1)

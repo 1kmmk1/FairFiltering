@@ -65,6 +65,7 @@ def main(rank, world_size, port, seed, args):
     num_classes = torch.max(train_ds.attr[:, 0]).item() + 1
     bias_classes = torch.max(train_ds.attr[:, 1]).item() + 1
     attr_dims = [num_classes, bias_classes] 
+    if rank==0: print(num_classes)
 
     train_sampler = DistributedSampler(train_ds, num_replicas=world_size, rank=rank)
     valid_sampler = DistributedSampler(valid_ds, num_replicas=world_size, rank=rank)

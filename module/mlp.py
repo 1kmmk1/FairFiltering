@@ -72,80 +72,12 @@ class MaskingModel(nn.Module):
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
         torch.nn.init.sparse_(self.classifier.weight, sparsity=0.2, std=0.01)
         
-        self.register_buffer('gradient_accumulator', torch.zeros_like(self.mask_scores, dtype=torch.float32))
-        self.register_buffer('weight_grad', torch.zeros_like(self.mask_scores, dtype=torch.float32))
-        self.register_buffer('mask', torch.ones(input_dim, output_dim))
-        
     def forward(self, x, eval):
         if eval:
             out = self.classifier(x)
         else:
-            # mask = STEFunction.apply(self.mask_scores)
-            # out = self.classifier(x*mask)
             out = MaskingFunction.apply(self.classifier.weight, x, F.sigmoid(self.mask_scores))
         return out
-    
-    # def accumulate_gradient(self):
-    #     # Gather gradients from all processes in DDP
-    #     self.weight_grad = self.classifier.weight.grad.std(dim=0)
-        
-    #     # Calculate weighted gradient norm based on class counts
-    #     self.gradient_accumulator += self.weight_grad
-    
-    # def mask_weight(self, i, j):
-    #     """
-    #     특정 가중치 요소를 마스킹합니다.
-    #     Args:
-    #         i (int): input dimension 인덱스
-    #         j (int): output dimension 인덱스
-    #     """
-    #     i_tensor = torch.tensor(i, dtype=torch.long, device=self.mask.device)
-    #     j_tensor = torch.tensor(j, dtype=torch.long, device=self.mask.device)
-    #     self.mask[i_tensor, j_tensor] = 0
-        
-    # def mask_gradients(self, gradient_list, k=1000):
-
-    #     all_grads = torch.stack(gradient_list)  # Shape: (iterations, dim1, dim2)
-    #     grad_std = all_grads.std(dim=0)        # Shape: (dim1, dim2)
-
-    #     # # 이미 마스킹된 가중치를 제외하기 위해 grad_std를 수정
-    #     # grad_std_masked = grad_std.clone()
-    #     # grad_std_masked[self.mask == 0.0] = float('-inf')  # 마스크된 위치는 무시
-
-    #     # 가장 작은 k개의 표준편차 값을 찾기
-    #     _, min_indices = torch.topk(grad_std.view(-1), k, largest=False, sorted=True)
-
-    #     # 원래 차원으로 인덱스 변환
-    #     attr_dims = grad_std.shape
-    #     if len(attr_dims) == 2:
-    #         _, dim2 = attr_dims
-    #         max_i = (min_indices // dim2).tolist()
-    #         max_j = (min_indices % dim2).tolist()
-    #     else:
-    #         raise NotImplementedError("마스킹 로직은 2D 텐서에 대해서만 구현되었습니다.")
-
-    #     # 해당 가중치 마스킹
-    #     self.mask_weight(max_i, max_j)
-
-    # def update_mask_scores(self, curr_lr, total_iter):
-    #     # Average the accumulated gradient norm over the epochs
-    #     avg_grad_norm = self.gradient_accumulator / total_iter
-        
-    #     #masked_indices = (F.sigmoid(self.mask_scores) <= 0.5).nonzero(as_tuple=True)[0]
-    #     with torch.no_grad():
-    #         self.mask_scores.data -= (curr_lr) * avg_grad_norm
-        
-    #     # # Reset the gradient accumulator
-    #     # unmasked_grad_norm = avg_grad_norm.clone()
-    #     # unmasked_grad_norm[masked_indices] = float('-inf')
-    #     # #print((F.sigmoid(self.mask_scores) <= 0.5).sum())
-    #     # #import ipdb;ipdb.set_trace()
-    #     # _, max_idx = torch.topk(unmasked_grad_norm, 5)
-    #     # # 새로 마스킹할 인덱스의 mask_scores를 -1로 업데이트
-    #     # self.mask_scores[max_idx] = -1.
-        
-    #     # self.gradient_accumulator = torch.zeros_like(self.mask_scores)
-    #     # self.weight_grad = torch.zeros_like(self.mask_scores)
 
 if __name__ == "__main__":
     pass
