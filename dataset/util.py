@@ -174,10 +174,7 @@ def get_dataset(data, root_dir, split, split_dict, shuffle, ratio):
         targets = np.asarray(meta_data["gold_label"].values)
         spurious = np.asarray(meta_data["sentence2_has_negation"].values)
         
-        if shuffle:
-            text_ = data_[list(meta_data['Unnamed: 0'])]
-        else:
-            text_ = data_[list(meta_data.index)]
+        text_ = data_[list(meta_data.index)]
         attr = np.vstack((targets, spurious)).T
         
         return text_, attr, transform

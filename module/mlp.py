@@ -65,18 +65,21 @@ class MaskingFunction(torch.autograd.Function):
         return weight_grad, grad_input, grad_mask
         
 class MaskingModel(nn.Module):
-    def __init__(self, input_dim, output_dim, soft):
+    def __init__(self, input_dim, output_dim, drop_ratio = 0.2):
         super(MaskingModel, self).__init__()
         self.input_dim = input_dim
+        self.drop_ratio = 0.2
         self.mask_scores = nn.Parameter(torch.randn(input_dim)*0.001)
+        self.register_buffer('mask_scores', torch.randn(input_dim)*0.001)
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
-        torch.nn.init.sparse_(self.classifier.weight, sparsity=0.2, std=0.01)
+        #torch.nn.init.sparse_(self.classifier.weight, sparsity=0.02, std=0.01)
         
     def forward(self, x, eval):
         if eval:
-            out = self.classifier(x)
+            out = self.classifier(F.dropout(x, 0.2))
         else:
-            out = MaskingFunction.apply(self.classifier.weight, x, F.sigmoid(self.mask_scores))
+            new_mask = (F.sigmoid(self.mask_scores) >= 0.5).float()
+            out = self.classifier(x * new_mask)
         return out
 
 if __name__ == "__main__":

@@ -141,7 +141,6 @@ def train_ERM(rank,
             if rank == 0:
                 pbar.close()
             
-            VAL_LOSS = sum_loss / ((batch_idx + 1) * dist.get_world_size())
             val_acc = torch.mean(group_acc.get_mean())
             val_wga = torch.min(group_acc.get_mean())
 
@@ -152,9 +151,8 @@ def train_ERM(rank,
                             "valid/WGA": val_wga.item(),
                             })
             
-            
-            if val_wga.item() > BEST_SCORE:
-                BEST_SCORE = val_wga.item()
+            if val_acc.item() > BEST_SCORE:
+                BEST_SCORE = val_acc.item()
                 BEST_ACC = eq_acc
                 BEST_EPOCH = epoch
                 BEST_GROUP_ACC = group_acc
@@ -167,7 +165,7 @@ def train_ERM(rank,
                                 'state_dict': model.module.state_dict(),
                                 'optimizer_state_dict': optimizer.state_dict()}
                     
-                    save_path = os.path.join("log", args.log_name, f"model_{epoch}.th")
+                    save_path = os.path.join("log", args.log_name, "model.th")
                     torch.save(state_dict, save_path)
                     print("*"*15, "Model Saved!", "*"*15)
                 PATIENCE = 0

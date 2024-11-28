@@ -168,7 +168,7 @@ def load_scheduler(optimizer, args):
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)        
     
     elif args.main_scheduler_tag == "linear":
-        scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.05, total_iters=50)        
+        scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=args.learning_rate, total_iters=args.epochs)        
     elif args.main_optimizer_tag == "None":  
         optimizer = None
     elif args.main_scheduler_tag == "cosine_wp":
