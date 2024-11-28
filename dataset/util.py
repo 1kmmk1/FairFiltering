@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 import torch
 import torchvision.transforms as T
-sys.path.append('../ACCV/dataset/')
-# import utils_glue
+sys.path.append('../FairFiltering/dataset/')
+import utils_glue
 
 transforms = {
     "CelebA": {
@@ -165,16 +165,16 @@ def get_dataset(data, root_dir, split, split_dict, shuffle, ratio):
         all_input_ids = torch.tensor([f.input_ids for f in features_array]).long()
         all_input_masks = torch.tensor([f.input_mask for f in features_array]).long()
         all_segment_ids = torch.tensor([f.segment_ids for f in features_array]).long()
-        data = torch.stack((all_input_ids, all_input_masks, all_segment_ids), dim=2)
+        data_ = torch.stack((all_input_ids, all_input_masks, all_segment_ids), dim=2)
         
         if shuffle:
             meta_data = pd.read_csv(os.path.join(root_dir, data, f"metadata_random_{ratio}.csv"))
         
-        meta_data = meta_data[meta_data['split'] == split_dict[split]]
+        meta_data = meta_data[meta_data["split"] == split_dict[split]]
         targets = np.asarray(meta_data["gold_label"].values)
         spurious = np.asarray(meta_data["sentence2_has_negation"].values)
         
-        text_ = data[list(meta_data.index)]
+        text_ = data_[list(meta_data.index)]
         attr = np.vstack((targets, spurious)).T
         
         return text_, attr, transform
@@ -203,8 +203,6 @@ def train_val_split(meta_data, split_dict: dict, ratio: float):
         meta_data[meta_data['split'] == split_dict['test']]
     ]).reset_index(drop=True)
     return meta_data
-
-
 
 
 if __name__ == "__main__":

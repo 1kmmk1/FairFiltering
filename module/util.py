@@ -16,14 +16,14 @@ def cnt_params(model):
             cnt += m.numel()
     return cnt
 
-def get_model(model_tag, num_classes, train_clf, soft, percentile):
+def get_model(model_tag, num_classes, train_clf, soft = False):
     if model_tag == "MLP":
         model = MLP(num_classes=num_classes)
     elif model_tag == "resnet50":
-        model = resnet50(pretrained=True, train_clf = train_clf, num_classes = num_classes, soft = soft, percentile=percentile)
+        model = resnet50(pretrained=True, train_clf = train_clf, num_classes = num_classes, soft = soft)
     elif model_tag == "BERT":
         bert_model = BertModel.from_pretrained('bert-base-uncased')
-        model = BertWrapper(bert_model, num_classes = num_classes, train_clf = train_clf)
+        model = BertWrapper(bert_model, num_classes = num_classes, train_clf = train_clf, soft=soft)
     else:
         raise NotImplementedError
     print("*"*10,"Parameters: ", cnt_params(model), "*"*10)

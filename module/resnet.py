@@ -120,14 +120,13 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, train_clf=False, soft=False, percentile=0.5):
+                 norm_layer=None, train_clf=False, soft=False):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
         self.train_clf = train_clf
         self.soft = soft
-        self.percentile = percentile
         self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:
@@ -196,7 +195,7 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def _forward_impl(self, x):
+    def _forward_impl(self, x, eval):
         # See note [TorchScript super()]
         x = self.conv1(x)
         x = self.bn1(x)
@@ -210,11 +209,11 @@ class ResNet(nn.Module):
         
         out = self.avgpool(x4)
         out = torch.flatten(out, 1)
-        out = self.fc(out)
+        out = self.fc(out, eval)
         return out
 
-    def forward(self, x):
-        return self._forward_impl(x)
+    def forward(self, x, eval=False):
+        return self._forward_impl(x, eval)
 
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
     model = ResNet(block, layers, **kwargs)
@@ -224,7 +223,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
         model.load_state_dict(state_dict, strict=False)
     d = model.fc.in_features
     if kwargs['train_clf']:
-        model.fc = MaskingModel(input_dim=d, output_dim=kwargs['num_classes'], soft=kwargs['soft'], percentile=kwargs['percentile'])
+        model.fc = MaskingModel(input_dim=d, output_dim=kwargs['num_classes'], soft=kwargs['soft'])
     else:
         model.fc = nn.Linear(d, kwargs['num_classes'], bias=False)
     return model

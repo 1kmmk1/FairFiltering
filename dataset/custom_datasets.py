@@ -72,5 +72,8 @@ class My_dataset(Dataset):
             img = Image.open(img_filename).convert("RGB")
             img = self.transform(img)
             attr = self.attr[idx]
-            return (img, attr, idx)          
+            return (img, attr, idx)
         
+if __name__ == "__main__":
+    test_ds = My_dataset(data = 'MultiNLI', split = 'test', shuffle=True, ratio = 0.5)
+    import ipdb;ipdb.set_trace()

@@ -27,84 +27,59 @@ class MLP(nn.Module):
         
         
 
-# class STEFunction(torch.autograd.Function):
-#     @staticmethod
-#     def forward(ctx, input):
-#         ctx.save_for_backward(input)
-#         return (input > torch.mean(input).item()).float()
-#         #return input.float()
-
-#     # @staticmethod #* ReLU 미분 구현
-#     # def backward(ctx, grad_output):
-#     #     return grad_output
-#     # def backward(ctx, grad_output):
-#     #     relu_grad = F.relu(ctx.saved_tensors[0])
-#     #     return relu_grad
-    
-#     @staticmethod #* Sigmoid 미분
-#     def backward(ctx, grad_output):
-#         input, = ctx.saved_tensors
-#         #from util import ForkedPdb;ForkedPdb().set_trace()
-#         sigmoid_grad = input * (1. - input)
-#         return grad_output * sigmoid_grad
-    
-    # # @staticmethod
-    # def backward(ctx, grad_output):
-    #     input, = ctx.saved_tensors
-    #     sigmoid_output = torch.sigmoid(input)
-    #     sigmoid_grad = sigmoid_output * (1 - sigmoid_output)
-    
-    #     pos_grad = torch.clamp(grad_output, min=0)
-        
-    #     #grad_input = pos_grad * sigmoid_grad
-        
-    #     # # 업데이트된 값이 0 이하로 내려가지 않도록 클리[핑
-    #     # grad_input = torch.clamp(grad_input, min=0)
-        
-    #     return pos_grad 
-    
-class MaskingFunction(torch.autograd.Function):
+class STEFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, weight, input, mask, percentile, soft):
+    def forward(ctx, mask):
+        sig_input = F.sigmoid(mask)
+        ctx.save_for_backward(mask)
+        return (sig_input >= 0.5).float()
+        #return input.float()
+
+    # @staticmethod #* ReLU 미분 구현
+    # def backward(ctx, grad_output):
+    #     return grad_output
+    def backward(ctx, grad_output):
+        saved_mask = ctx.saved_tensors[0]
+        sig_grad = F.sigmoid(saved_mask) * (1. - saved_mask)
+        #relu_grad = F.leaky_relu(saved_mask, negative_slope=0.1)
+        return sig_grad
+
+
+class MaskingFunction(torch.autograd.Function):
+    
+    @staticmethod
+    def forward(ctx, weight, input, mask):
         ctx.save_for_backward(weight, input, mask)
-        if soft:
-            F.linear(input + mask, weight)
-        else:
-            new_mask = torch.sign(mask)
-            return F.linear(input + new_mask, weight)  # Forward에서는 마스크를 적용
+        new_mask = (mask >= 0.5).float()
+        return F.linear(input * new_mask, weight)
 
     @staticmethod
     def backward(ctx, grad_output):
         weight, input, mask = ctx.saved_tensors
-        weight_grad = grad_output.T.matmul(input)# * mask 
-        grad_input = grad_output.matmul(weight)  # 마스크의 영향을 제거한 그레이디언트
-        #grad_norm = torch.norm(grad_input, p=2, dim=-1) / torch.norm(grad_input, p=2, dim=-1).sum()
-        # max_norm = torch.argmax(grad_norm)
-        # sig_grad = mask * (1. - mask)
-        #org_z_grad = input * sig_grad; grad_batch = grad_input * org_z_grad
-        #grad_norm = torch.norm(grad_batch, p=2, dim=-1) / torch.norm(grad_batch, p=2, dim=-1).sum(); 
-        #grad_mask = torch.sum((grad_norm).unsqueeze(-1).contiguous() * grad_batch, dim=0)
-        #grad_mask = torch.sum((mask * input).T @ (grad_output @ weight), dim=0)
-        grad_mask = grad_output.matmul(weight)
-        return weight_grad, grad_input, grad_mask, None, None
-
-
+        # Compute the gradient for the weight
+        weight_grad = grad_output.T.matmul(input)
+        grad_input = grad_output.matmul(weight)# * mask # 마스크의 영향을 제거한 그레이디언트
+        sig_grad = mask * (1. - mask)
+        grad_mask = F.leaky_relu((grad_input * input * sig_grad).sum(dim=0), negative_slope=0.2)
+        
+        return weight_grad, grad_input, grad_mask
+        
 class MaskingModel(nn.Module):
-    def __init__(self, input_dim, output_dim, soft = False, percentile = 0.5):
+    def __init__(self, input_dim, output_dim, soft=False):
         super(MaskingModel, self).__init__()
-        self.soft = soft
-
-        self.mask_scores = nn.Parameter(torch.randn(input_dim))
-
-        self.percentile = percentile
+        self.input_dim = input_dim
+        self.drop_ratio = 0.2
+        self.mask_scores = nn.Parameter(torch.randn(input_dim)*0.001)
+        self.register_buffer('mask_scores', torch.randn(input_dim)*0.001)
         self.classifier = nn.Linear(input_dim, output_dim, bias=False)
-    def forward(self, x):
-        mask = F.sigmoid(self.mask_scores)
-            
-        if self.soft:
-            out = self.classifier(x * mask)
+        #torch.nn.init.sparse_(self.classifier.weight, sparsity=0.02, std=0.01)
+        
+    def forward(self, x, eval):
+        if eval:
+            out = self.classifier(F.dropout(x, 0.2))
         else:
-            out = MaskingFunction.apply(self.classifier.weight, x, mask, self.percentile, self.soft)
+            new_mask = (F.sigmoid(self.mask_scores) >= 0.5).float()
+            out = self.classifier(x * new_mask)
         return out
 
 if __name__ == "__main__":
