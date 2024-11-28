@@ -65,7 +65,7 @@ class MaskingFunction(torch.autograd.Function):
         return weight_grad, grad_input, grad_mask
         
 class MaskingModel(nn.Module):
-    def __init__(self, input_dim, output_dim, drop_ratio = 0.2):
+    def __init__(self, input_dim, output_dim, soft=False):
         super(MaskingModel, self).__init__()
         self.input_dim = input_dim
         self.drop_ratio = 0.2
