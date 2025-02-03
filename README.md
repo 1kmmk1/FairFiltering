@@ -1,7 +1,7 @@
 # FairFiltering
 
 ### Method
-![Method](figures/Method2.pdf) 
+![Method](figures/Method2.png) 
 - Method Overview. The entire network, $f$, consists of $h$ and $g$, where $h$ represents the feature extractor and $c$ stands for the classifier. $m$ is a learnable filtering vector with the same dimensions as embedding vectors $z$. $Tile$ represents the tiling process, which replicates the filtering vector $m$ across the batch dimension $n$ times.
 
 ### Datasets
